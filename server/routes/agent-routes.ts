@@ -1,16 +1,15 @@
 import {Router} from 'express';
+import {createEventStream} from '../http/event-stream';
 import {z} from 'zod';
 import {agentModelSettingsSchema, agentReplySchema} from '../../shared/agent';
 import type {CodexSessionService} from '../services/codex-session-service';
 
 export function agentRoutes(agent: CodexSessionService) {
   const router = Router();
-  router.get('/events', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream'); res.setHeader('Cache-Control', 'no-cache'); res.setHeader('Connection', 'keep-alive'); res.flushHeaders();
-    const send = (state: unknown) => res.write(`data: ${JSON.stringify(state)}\n\n`);
-    send(agent.snapshot()); agent.on('change', send);
-    const timer = setInterval(() => res.write(': heartbeat\n\n'), 20_000);
-    req.on('close', () => {clearInterval(timer); agent.off('change', send);});
+  router.get('/events', (req, res, next) => {
+    const stream = createEventStream(req, res, next);
+    stream.subscribe(agent, (state: unknown) => stream.send(state));
+    stream.send(agent.snapshot());
   });
   router.post('/start', async (req, res) => {
     const {fresh} = z.object({fresh: z.boolean().default(false)}).strict().parse(req.body);

@@ -1,4 +1,5 @@
 import {Router} from 'express';
+import {isConnectionError} from '../http/connection-errors';
 import path from 'node:path';
 import {z} from 'zod';
 import type {MediaFileRepository} from '../repositories/media-file-repository';
@@ -12,8 +13,7 @@ export function projectMediaRoutes(files: MediaFileRepository) {
     const file = files.resolve(`/project-media/${req.params.project}/${req.params.folder}/${req.params.filename}`);
     res.sendFile(path.basename(file), {root: path.dirname(file), dotfiles: 'deny'}, error => {
       // Browsers routinely cancel a byte-range request when seeking or changing clips.
-      const code = (error as NodeJS.ErrnoException | undefined)?.code;
-      if(code === 'ECONNABORTED' || code === 'ECONNRESET') return;
+      if(isConnectionError(error)) {res.destroy(); return;}
       if(error && !req.aborted && !res.destroyed) next(error);
     });
   });

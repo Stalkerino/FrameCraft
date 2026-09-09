@@ -1,16 +1,15 @@
 import {Router} from 'express';
+import {createEventStream} from '../http/event-stream';
 import {z} from 'zod';
 import {presetApplySchema, presetPreviewSchema, presetSaveSchema} from '../../shared/asset-presets';
 import type {PresetService} from '../services/preset-service';
 export function presetRoutes(service: PresetService) {
   const router = Router(); const library = service.library;
   router.get('/', (_req, res) => res.json(library.snapshot()));
-  router.get('/events', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream'); res.setHeader('Cache-Control', 'no-cache'); res.setHeader('Connection', 'keep-alive'); res.flushHeaders();
-    const send = (value: unknown) => res.write(`data: ${JSON.stringify(value)}\n\n`);
-    send({revision: library.snapshot().revision}); library.on('change', send);
-    const timer = setInterval(() => res.write(': heartbeat\n\n'), 20000);
-    req.on('close', () => {library.off('change', send); clearInterval(timer);});
+  router.get('/events', (req, res, next) => {
+    const stream = createEventStream(req, res, next);
+    stream.subscribe(library, (state: unknown) => stream.send(state));
+    stream.send({revision: library.snapshot().revision});
   });
   router.post('/save', async (req, res) => res.json(await library.save(presetSaveSchema.parse(req.body))));
   router.post('/apply', async (req, res) => res.json(await service.apply(presetApplySchema.parse(req.body), req.headers['x-framecraft-client'] === 'codex' ? 'codex' : 'editor')));

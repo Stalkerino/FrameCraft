@@ -1,0 +1,10 @@
+.timeline-export {padding: 22px; display: grid; gap: 18px; max-width: 760px;
+  input {width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 12px;}
+  &__intro {display: flex; gap: 14px; align-items: flex-start; > svg {color: var(--accent); flex: 0 0 auto;} h3 {margin: 0 0 6px; font-size: 17px;} p {margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6;}}
+  &__format {display: flex; justify-content: space-between; gap: 12px; padding: 14px; background: var(--panel-raised); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; span {color: var(--muted);}}
+  &__result {border-top: 1px solid var(--border); padding-top: 16px; display: grid; gap: 12px; h3,p {margin: 0;} h3 {font-size: 15px;} p,ol {font-size: 12px; color: var(--muted); line-height: 1.7;} ol {padding-left: 20px; margin: 0;} summary {font-size: 12px; cursor: pointer; font-weight: 600;}}
+  &__downloads {display: flex; flex-wrap: wrap; gap: 8px; a {display: inline-flex; align-items: center; gap: 7px; font-size: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); text-decoration: none; &:first-child {background: var(--accent); color: #101812; border-color: var(--accent);} &:hover {filter: brightness(1.1);}}}
+  &__warnings, &__media {padding: 12px; border: 1px solid var(--border); border-radius: 6px; ul {list-style: none; padding: 0; margin: 12px 0 0; max-height: 220px; overflow: auto;} li {padding: 9px 0; border-top: 1px solid var(--border); font-size: 11px; strong,span,code {display: block; overflow-wrap: anywhere;} span,code {color: var(--muted); line-height: 1.6; margin-top: 3px;}}}
+  &__media {p {margin-top: 10px;} li {display: flex; align-items: center; justify-content: space-between; gap: 12px;} a {padding: 8px; color: var(--accent);}}
+}
+@media (max-width: 700px) {.timeline-export {padding: 16px; &__format {flex-direction: column;}}}

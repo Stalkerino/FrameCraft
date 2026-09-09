@@ -1,4 +1,6 @@
 import express from 'express';
+import {createEventStream} from './http/event-stream';
+import {isConnectionError} from './http/connection-errors';
 import multer from 'multer';
 import {mkdir, unlink, writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -39,6 +41,8 @@ import {ColorGradingService} from './services/color-grading-service';
 import {colorGradingRoutes} from './routes/color-grading-routes';
 import {SpeedRampService} from './services/speed-ramp-service';
 import {speedRampRoutes} from './routes/speed-ramp-routes';
+import {TimelineExportService} from './services/timeline-export-service';
+import {timelineExportRoutes} from './routes/timeline-export-routes';
 
 export async function createApp() {
   const app = express();
@@ -53,6 +57,7 @@ export async function createApp() {
   const presetRepository = new PresetRepository(libraryDir); await presetRepository.init();
   const presets = new PresetService(presetRepository, repository, renders);
   const timeline = new TimelineService(repository);
+  const timelineExports = new TimelineExportService(repository, mediaFiles, exportDir);
   const grading = new ColorGradingService(repository);
   const audioEffects = new AudioEffectsService(repository, media, mediaFiles, path.join(dataDir, 'audio-cache'));
   const speedRamps = new SpeedRampService(repository, media, mediaFiles, path.join(dataDir, 'speed-cache'), encoders);
@@ -86,6 +91,7 @@ export async function createApp() {
   app.use('/visual-rush/images', express.static(path.join(dataDir, 'visual-rush', 'images'), {dotfiles: 'deny'}));
   app.use('/api/asset-presets', presetRoutes(presets));
   app.use('/api/timeline', timelineRoutes(timeline));
+  app.use('/api/timeline-export', timelineExportRoutes(timelineExports));
   app.use('/api/color-grading', colorGradingRoutes(grading));
   app.use('/api/audio', audioMixRoutes(audioMix));
   app.use('/api/audio-effects', audioEffectsRoutes(audioEffects));
@@ -109,20 +115,18 @@ export async function createApp() {
     if(projectId && projectId !== repository.snapshot().project.id) return res.status(409).json({error: 'Editor context belongs to another project'});
     editorContext = context; res.json({ok: true});
   });
-  app.get('/api/events', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream'); res.setHeader('Cache-Control', 'no-cache'); res.setHeader('Connection', 'keep-alive'); res.flushHeaders();
-    const send = (snapshot: unknown) => res.write(`data: ${JSON.stringify(snapshot)}\n\n`);
-    const sendAgent = (snapshot: unknown) => res.write(`event: agent\ndata: ${JSON.stringify(snapshot)}\n\n`);
-    const sendPresets = (snapshot: {revision: number}) => res.write(`event: presets\ndata: ${JSON.stringify({revision: snapshot.revision})}\n\n`);
-    const sendSounds = (snapshot: {revision: number}) => res.write(`event: sounds\ndata: ${JSON.stringify({revision: snapshot.revision})}\n\n`);
-    const sendMedia = () => res.write(`event: media\ndata: ${JSON.stringify(previews.snapshot(repository.snapshot().project.assets))}\n\n`);
-    send(repository.snapshot()); repository.on('change', send);
-    sendAgent(codex.snapshot()); codex.on('change', sendAgent);
-    sendPresets(presetRepository.snapshot()); presetRepository.on('change', sendPresets);
-    sendSounds(sounds.library.snapshot()); sounds.library.on('change', sendSounds);
-    sendMedia(); previews.on('change', sendMedia); repository.on('change', sendMedia);
-    const ping = setInterval(() => res.write(': heartbeat\n\n'), 20_000);
-    req.on('close', () => {clearInterval(ping); repository.off('change', send); codex.off('change', sendAgent); presetRepository.off('change', sendPresets); sounds.library.off('change', sendSounds); previews.off('change', sendMedia); repository.off('change', sendMedia);});
+  app.get('/api/events', (req, res, next) => {
+    const stream = createEventStream(req, res, next);
+    const send = (snapshot: unknown) => stream.send(snapshot);
+    const sendAgent = (snapshot: unknown) => stream.send(snapshot, 'agent');
+    const sendPresets = (snapshot: {revision: number}) => stream.send({revision: snapshot.revision}, 'presets');
+    const sendSounds = (snapshot: {revision: number}) => stream.send({revision: snapshot.revision}, 'sounds');
+    const sendMedia = () => stream.send(previews.snapshot(repository.snapshot().project.assets), 'media');
+    stream.subscribe(repository, send); stream.subscribe(codex, sendAgent);
+    stream.subscribe(presetRepository, sendPresets); stream.subscribe(sounds.library, sendSounds);
+    stream.subscribe(previews, sendMedia); stream.subscribe(repository, sendMedia);
+    send(repository.snapshot()); sendAgent(codex.snapshot());
+    sendPresets(presetRepository.snapshot()); sendSounds(sounds.library.snapshot()); sendMedia();
   });
   app.post('/api/commands', async (req, res) => {
     const body = z.object({commands: z.array(commandSchema), revision: z.number().int(), label: z.string().max(180).default('Updated the timeline')}).parse(req.body);
@@ -161,8 +165,8 @@ export async function createApp() {
   app.get('/api/project/download', (_req, res) => res.attachment('framecraft-project.json').json(repository.snapshot().project));
   app.use(express.static(path.join(rootDir, 'dist')));
   app.use((error: Error & {status?: number; code?: string}, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if(isConnectionError(error)) {res.destroy(); return;}
     if(req.aborted || res.destroyed) return;
-    if(res.headersSent && (error.code === 'ECONNABORTED' || error.code === 'ECONNRESET')) return;
     if(res.headersSent) {next(error); return;}
     console.error(error.message); res.status(error.status || 400).json({error: error.message});
   });

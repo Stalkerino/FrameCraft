@@ -62,6 +62,8 @@ Microphone access requires localhost or HTTPS; plain HTTP on a LAN IP does not q
 
 ## Export and inspection
 
+- **Editable timeline export:** top-bar **Export timeline** prepares Final Cut Pro 7 XML for Premiere-compatible importers, a compatibility/media report, and a full Framecraft JSON backup. Retains source cuts, timeline positions, explicit audio channels, disabled tracks and static gain/opacity; custom artwork becomes review markers and unsupported effects are listed. Media is referenced, not bundled. Optional Windows/Linux destination folder rewrites references for relinking. See [timeline export](timeline-export.md). MCP: `export_timeline` with revision, optional `format: "premiere-xml"` and `mediaRoot`.
+
 - Custom output dimensions and fps independent of project settings, with fit, fill/crop, or stretch handling and a composition preview.
 - H.264 and H.265 MP4, VP8/VP9 WebM, AV1 MP4, Apple ProRes MOV, and H.264 MKV.
 - Constant quality (CRF) or target video bitrate for applicable codecs; H.264 encoding speed and ProRes profiles.

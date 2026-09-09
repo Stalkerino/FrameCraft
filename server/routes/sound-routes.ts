@@ -1,4 +1,5 @@
 import {Router} from 'express';
+import {isConnectionError} from '../http/connection-errors';
 import path from 'node:path';
 import {z} from 'zod';
 import {soundApplySchema, soundPreviewSchema, soundSaveSchema} from '../../shared/sound-presets';
@@ -10,8 +11,7 @@ export function soundRoutes(service: SoundLibraryService) {
   router.get('/audio/:filename', (req, res, next) => {
     const file = service.audioPath(req.params.filename);
     res.type('audio/wav').sendFile(path.basename(file), {root: path.dirname(file), dotfiles: 'deny'}, error => {
-      const code = (error as NodeJS.ErrnoException | undefined)?.code;
-      if(code === 'ECONNABORTED' || code === 'ECONNRESET') return;
+      if(isConnectionError(error)) {res.destroy(); return;}
       if(error && !req.aborted && !res.destroyed) next(error);
     });
   });

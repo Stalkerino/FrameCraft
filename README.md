@@ -23,6 +23,7 @@ Framecraft is a local video editor for devlogs, gameplay breakdowns, tutorials, 
 | Resizable Edit, Review, and AI edit layouts | Transcribe speech, cut by words, and generate captions |
 | Named projects, autosave, and shared preset library | Type or dictate into the existing Codex conversation |
 | Custom resolution, fps, codec, quality, and bitrate | Export with detected AMD/NVIDIA hardware or CPU |
+| Editable timeline export | Download Premiere-compatible XML, a media/effect report and the full project backup |
 
 See the [feature and MCP tool reference](docs/feature-overview.md) for the full list and current boundaries.
 
@@ -55,6 +56,8 @@ The editor works without Codex. To use the embedded agent, install Codex CLI, si
 4. Add titles or saved presets; use the canvas and grouped Properties controls for placement.
 5. Ask Codex to make further edits and inspect frames. Its timeline changes share your undo history.
 6. Review playback, choose export settings, and render a frozen project snapshot while you continue editing.
+
+To continue editing elsewhere, use **Export timeline → Prepare XML export → Download XML** beside the video export button. See [timeline handoff](docs/timeline-export.md) for media relinking and effects that need rebuilding.
 
 Originals are copied into project media storage. Full-quality playback uses supported originals or an on-demand, full-resolution compatibility copy; **Performance** deliberately selects a smaller playback copy. Export always reads original media. Project and export resolution are separate settings.
 
