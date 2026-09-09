@@ -1,0 +1,6 @@
+.assist-tabs {grid-template-columns: repeat(5, 1fr);}
+.gameplay-map, .gameplay-review {display: flex; flex-direction: column; gap: 12px; padding-top: 15px; border-top: 1px solid var(--border);}
+.gameplay-pages {display: flex; flex-wrap: wrap; gap: 6px; .button {font-size: 10px;}}
+.gameplay-sheet {width: 100%; border: 1px solid var(--border); border-radius: 6px;}
+.gameplay-timestamps {display: grid; grid-template-columns: 1fr 1fr; gap: 5px; button {font-size: 10px; font-variant-numeric: tabular-nums; color: var(--muted-strong); text-align: left; padding: 5px; border-radius: 3px; &:hover {background: var(--accent-soft); color: var(--accent);}}}
+.gameplay-review .roughcut-shots {max-height: 420px; overflow: auto; li > input {width: auto; flex-shrink: 0; accent-color: var(--accent);} strong {white-space: normal; font-size: 10px;} }

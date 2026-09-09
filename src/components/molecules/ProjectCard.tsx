@@ -1,0 +1,5 @@
+import {Check, Film} from 'lucide-react';
+import type {ProjectSummary} from '../../../shared/project-library';
+export function ProjectCard({project, active, disabled, onOpen}: {project: ProjectSummary; active: boolean; disabled: boolean; onOpen: () => void}) {
+  return <button className={`project-card ${active ? 'project-card--active' : ''}`} aria-label={`Open ${project.name}`} disabled={disabled} onClick={onOpen}><div className="project-card__art">{project.thumbnail ? <img src={project.thumbnail} alt=""/> : <Film size={26}/>}<span>{project.width} × {project.height} · {project.fps} fps</span></div><div className="project-card__info"><strong>{project.name}</strong><p>{project.clipCount} {project.clipCount === 1 ? 'clip' : 'clips'} · {project.assetCount} media · {Math.round(project.durationSeconds)}s</p><div><time dateTime={project.updatedAt}>{new Date(project.updatedAt).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}</time>{active && <span><Check size={12}/>Current</span>}</div></div></button>;
+}

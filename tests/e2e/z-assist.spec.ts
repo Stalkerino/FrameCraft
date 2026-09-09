@@ -1,0 +1,62 @@
+import {test, expect} from '@playwright/test';
+import {execFileSync} from 'node:child_process';
+import {mkdir, writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {clipSchema} from '../../shared/project';
+
+test('transcript edits, captions, focus overlays and a reviewable first cut share the live timeline', async ({page, request}) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  const directory = path.resolve('test-results/assisted fixtures'); await mkdir(directory, {recursive: true}); const file = path.join(directory, 'combat devlog.mp4');
+  execFileSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-y', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=330:sample_rate=48000', '-t', '6', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', file], {stdio: 'ignore'});
+  const imported = await (await request.post('/api/import-path', {data: {filePath: file}})).json(); const asset = imported.project.assets.at(-1);
+  const clip = clipSchema.parse({id: 'assisted-video', name: 'Assisted source', kind: 'video', track: 'visual', assetId: asset.id, start: 0, sourceStart: 0, duration: 180});
+  expect((await request.post('/api/commands', {data: {revision: imported.project.revision, commands: [{type: 'clips.replace', clips: [clip]}]}})).ok()).toBe(true);
+  const client = new Client({name: 'assist-integration-test', version: '1'});
+  await client.connect(new StdioClientTransport({command: process.execPath, args: [path.resolve('scripts/mcp.mjs')], env: {...process.env as Record<string, string>, FRAMECRAFT_URL: 'http://127.0.0.1:4319'}}));
+  try {
+    const names = (await client.listTools()).tools.map(t => t.name); expect(names).toEqual(expect.arrayContaining(['transcribe_media', 'search_footage', 'generate_captions', 'propose_first_cut']));
+    // Explicit timed transcript fixture: the test does not pretend a sine tone is speech or download models.
+    const corrected = await client.callTool({name: 'correct_transcript', arguments: {assetId: asset.id, revision: null, words: [{id: 'a', text: 'Combat', start: .5, end: 1}, {id: 'b', text: 'feels', start: 1, end: 1.5}, {id: 'c', text: 'better.', start: 1.5, end: 2}, {id: 'd', text: 'New', start: 3, end: 3.5}, {id: 'e', text: 'lighting.', start: 3.5, end: 4.5}]}}); expect(corrected.isError).not.toBe(true);
+    await page.goto('/'); await page.getByRole('button', {name: 'Tools', exact: true}).click();
+    await page.getByRole('combobox', {name: 'Speech source'}).selectOption(asset.id);
+    await page.getByRole('combobox', {name: 'Transcript timeline clip'}).selectOption(clip.id);
+    await page.getByRole('button', {name: 'Generate captions for selected clip'}).click();
+    await expect.poll(async () => (await (await request.get('/api/project')).json()).project.clips.filter((c: {caption?: unknown}) => c.caption).length).toBe(2);
+    expect(await (await request.get('/api/analysis/subtitles/srt')).text()).toContain('Combat feels better.');
+    await page.getByRole('button', {name: 'feels', exact: true}).click(); await page.getByRole('button', {name: 'better.', exact: true}).click({modifiers: ['Shift']});
+    await page.getByRole('button', {name: 'Review cut · 2 words'}).click(); await expect(page.getByText('Remove 1.00 s', {exact: true})).toBeVisible();
+    const before = (await (await request.get('/api/project')).json()).project;
+    await page.getByRole('button', {name: 'Apply cut', exact: true}).click();
+    await expect.poll(async () => (await (await request.get('/api/project')).json()).project.revision).toBe(before.revision + 1);
+    expect(await (await request.get('/api/analysis/subtitles/srt')).text()).not.toContain('feels');
+    await page.getByRole('button', {name: 'Undo timeline edit (Ctrl+Z)', exact: true}).click();
+    await expect.poll(async () => (await (await request.get('/api/project')).json()).project.clips).toEqual(before.clips);
+    await page.getByRole('button', {name: 'Zooms & callouts', exact: true}).click(); await page.getByRole('button', {name: 'Arrow', exact: true}).click();
+    await expect(page.getByRole('combobox', {name: 'Annotation shape'})).toHaveValue('arrow');
+    await page.getByRole('spinbutton', {name: 'Position Y', exact: true}).fill('35'); await page.getByRole('spinbutton', {name: 'Position Y', exact: true}).press('Enter');
+    await expect.poll(async () => (await (await request.get('/api/project')).json()).project.clips.find((c: {kind: string}) => c.kind === 'annotation')?.y).toBe(35);
+    await page.getByRole('button', {name: 'Select Assisted source', exact: true}).click(); await page.getByRole('button', {name: 'Add focus zoom', exact: true}).click();
+    await expect(page.getByRole('spinbutton', {name: 'Zoom to', exact: true})).toHaveValue('1.6');
+    const render = await client.callTool({name: 'render_frame', arguments: {frame: 55}}, undefined, {timeout: 120000});
+    expect(render.isError).not.toBe(true); expect((render.content as {type: string}[]).some(c => c.type === 'image')).toBe(true);
+    const png = (render.content as {type: string; data: string}[]).find(c => c.type === 'image')!;
+    await writeFile('test-results/assist-render.png', Buffer.from(png.data, 'base64'));
+    await page.getByRole('button', {name: 'Export video', exact: true}).click(); await page.getByRole('button', {name: 'Export now', exact: true}).click();
+    await expect(page.getByRole('link', {name: 'Download video'})).toBeVisible({timeout: 120000});
+    await page.screenshot({path: 'test-results/assist-focus.png'});
+    await page.getByRole('button', {name: 'Rough cut', exact: true}).click();
+    await page.locator('.source-checklist').getByText(asset.name, {exact: false}).click(); await page.getByRole('button', {name: 'Propose a first cut'}).click();
+    await expect(page.getByText('2 shots', {exact: true})).toBeVisible({timeout: 15000});
+    await page.getByRole('button', {name: 'Move shot 2 up'}).click(); expect(await page.locator('.roughcut-shots li').first().textContent()).toContain('New lighting.');
+    const proposed = (await (await request.get('/api/project')).json()).project;
+    await page.getByRole('button', {name: 'Apply this cut'}).click(); await expect(page.getByRole('button', {name: 'Applied to timeline'})).toBeVisible();
+    await expect.poll(async () => (await (await request.get('/api/project')).json()).project.revision).toBe(proposed.revision + 1);
+    const after = (await (await request.get('/api/project')).json()).project; expect(after.clips.find((c: {start: number; assetId: string}) => c.assetId === asset.id && c.start === 180).sourceStart).toBe(90);
+    const stale = await request.post('/api/analysis/roughcut/apply', {data: {revision: proposed.revision, mode: 'replace', shots: [{assetId: asset.id, sourceStart: 0, duration: 60}]}}); expect(stale.status()).toBe(409);
+    await page.screenshot({path: 'test-results/assist-first-cut.png'});
+    await page.reload(); await page.getByRole('button', {name: 'Tools', exact: true}).click(); await page.getByRole('combobox', {name: 'Speech source'}).selectOption(asset.id); await expect(page.getByRole('button', {name: 'Combat', exact: true})).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {await client.close();}
+});

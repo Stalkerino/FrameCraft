@@ -1,0 +1,50 @@
+import {test, expect} from '@playwright/test';
+import {execFileSync} from 'node:child_process';
+import {mkdir, writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import type {Project, Snapshot} from '../../shared/project';
+
+test('creates blank projects, saves copies and opens preserved work through the project menu and MCP', async ({page, request, context}) => {
+  const current = async (): Promise<Snapshot> => (await request.get('/api/project')).json(); const initial = await current();
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  const client = new Client({name: 'project-library-test', version: '1.0.0'});
+  await client.connect(new StdioClientTransport({command: process.execPath, args: [path.resolve('scripts/mcp.mjs')], env: {...process.env as Record<string, string>, FRAMECRAFT_URL: 'http://127.0.0.1:4319'}}));
+  const call = async (name: string, args: Record<string, unknown>) => {const response = await client.callTool({name, arguments: args}); expect(response.isError, JSON.stringify(response)).not.toBe(true); return JSON.parse((response.content as {text: string}[])[0].text);};
+  const menu = async (label: RegExp) => {await page.getByRole('button', {name: 'Project menu', exact: true}).click(); await page.locator('.project-menu__panel').getByRole('button', {name: label}).click();};
+  try {
+    await page.goto('/'); const observer = await context.newPage(); await observer.goto('/');
+    await menu(/^Save as/); const copyDialog = page.getByRole('dialog', {name: 'Save as', exact: true});
+    await copyDialog.getByRole('textbox', {name: 'Project name'}).fill('Devlog alternate'); await copyDialog.getByRole('button', {name: 'Save copy', exact: true}).click();
+    await expect(page.getByRole('button', {name: 'Project menu', exact: true})).toHaveText('Devlog alternate');
+    const copy = await current(); expect(copy.project.id).not.toBe(initial.project.id); expect(copy.project.clips).toEqual(initial.project.clips); expect(copy.project.assets).toEqual(initial.project.assets); expect(copy.canUndo).toBe(false);
+    await expect(observer.getByRole('button', {name: 'Project menu', exact: true})).toHaveText('Devlog alternate');
+    await page.getByRole('button', {name: 'Titles', exact: true}).click(); await page.getByRole('button', {name: /^Title Heading/}).click();
+    await page.getByRole('textbox', {name: 'Text content'}).fill('ONLY IN MY COPY'); await page.getByRole('spinbutton', {name: 'Position X', exact: true}).click();
+    await expect.poll(async () => (await current()).project.clips.some(c => c.text === 'ONLY IN MY COPY')).toBe(true);
+    await menu(/^New project/); const createDialog = page.getByRole('dialog', {name: 'New project', exact: true});
+    await createDialog.getByRole('textbox', {name: 'Project name'}).fill('Fresh episode'); await createDialog.getByRole('spinbutton', {name: 'Width (px)'}).fill('640'); await createDialog.getByRole('spinbutton', {name: 'Height (px)'}).fill('360'); await createDialog.getByRole('combobox', {name: 'Frame rate preset'}).selectOption('24'); await createDialog.getByRole('button', {name: 'Create project', exact: true}).click();
+    await expect(page.getByRole('button', {name: 'Project menu', exact: true})).toHaveText('Fresh episode');
+    const blank = await current(); expect(blank.project).toMatchObject({clips: [], assets: [], width: 640, height: 360, fps: 24}); expect(blank.canUndo).toBe(false); await expect(page.locator('.timecode')).toContainText('00:00:00');
+    const fixtureDir = path.resolve('test-results/projects'); await mkdir(fixtureDir, {recursive: true}); const media = path.join(fixtureDir, 'new episode.mp4');
+    execFileSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-y', '-f', 'lavfi', '-i', 'color=c=blue:s=320x180:r=24', '-t', '1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', media], {stdio: 'ignore'});
+    await page.locator('input[type=file]').setInputFiles(media); const addMedia = page.getByRole('button', {name: 'Add new episode.mp4 to timeline', exact: true}); await expect(addMedia).toBeVisible({timeout: 45000}); await addMedia.click(); await expect.poll(async () => (await current()).project.clips.length).toBe(1);
+    await page.getByRole('button', {name: 'Presets', exact: true}).click(); await expect(page.getByRole('button', {name: 'Open Purple Glitch preset', exact: true})).toBeVisible();
+    const frozenProject = (await current()).project;
+    const renderResponse = await request.post('/api/render', {data: {kind: 'video', revision: frozenProject.revision, settings: {width: 320, height: 180, fps: 24, audio: false}}}); expect(renderResponse.ok()).toBe(true); const job = await renderResponse.json();
+    await menu(/^Open project/); const browser = page.getByRole('dialog', {name: 'Open project', exact: true});
+    await expect(browser.getByRole('button', {name: `Open ${initial.project.name}`, exact: true})).toBeVisible(); await page.screenshot({path: 'test-results/projects/project-browser.png'});
+    await browser.getByRole('textbox', {name: 'Search projects'}).fill('Devlog alternate'); await browser.getByRole('button', {name: 'Open Devlog alternate', exact: true}).click();
+    await expect(page.getByRole('button', {name: 'Project menu', exact: true})).toHaveText('Devlog alternate'); await page.reload(); expect((await current()).project.clips.some(c => c.text === 'ONLY IN MY COPY')).toBe(true);
+    await expect(page.getByRole('button', {name: 'Undo timeline edit (Ctrl+Z)', exact: true})).toBeEnabled(); await page.getByRole('button', {name: 'Undo timeline edit (Ctrl+Z)', exact: true}).click(); await expect.poll(async () => (await current()).project.clips.some(c => c.text === 'ONLY IN MY COPY')).toBe(false);
+    const projects = await call('list_projects', {}); expect(projects.projects.map((p: Project) => p.id)).toEqual(expect.arrayContaining([initial.project.id, copy.project.id, blank.project.id]));
+    await call('manage_project', {operation: {action: 'open', id: initial.project.id, revision: (await current()).project.revision}});
+    await expect(page.getByRole('button', {name: 'Project menu', exact: true})).toHaveText(initial.project.name);
+    const restored = await current(); expect(restored.project.clips).toEqual(initial.project.clips); expect(restored.project.assets).toEqual(initial.project.assets); expect(restored.canUndo).toBe(initial.canUndo);
+    const stale = await request.post('/api/commands', {data: {revision: frozenProject.revision, commands: [{type: 'project.clear'}]}}); expect(stale.status()).toBe(409);
+    await expect.poll(async () => (await (await request.get(`/api/render/${job.id}`)).json()).status, {timeout: 120000}).toMatch(/done|error/); const done = await (await request.get(`/api/render/${job.id}`)).json(); expect(done.status, done.error).toBe('done');
+    const file = path.join(fixtureDir, 'frozen-export.mp4'); await writeFile(file, await (await request.get(done.url)).body()); const probe = JSON.parse(execFileSync(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], {encoding: 'utf8'})); expect(probe.streams[0].width).toBe(320); expect(Number(probe.format.duration)).toBeCloseTo(1, 1);
+    await observer.close(); expect(errors).toEqual([]);
+  } finally {await client.close(); const latest = await current(); if(latest.project.id !== initial.project.id) await request.post('/api/projects', {data: {action: 'open', id: initial.project.id, revision: latest.project.revision}});}
+});

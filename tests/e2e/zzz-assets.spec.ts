@@ -1,0 +1,83 @@
+import {test, expect} from '@playwright/test';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {writeFile, mkdir} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import path from 'node:path';
+import {presetStarters} from '../../shared/preset-starters';
+import type {SavedPreset} from '../../shared/asset-presets';
+
+test('creates, customizes, reuses, shares and renders asset presets through the UI and real MCP', async ({page, request}) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  const project = async () => (await (await request.get('/api/project')).json()).project;
+  const library = async (): Promise<{presets: SavedPreset[]}> => (await request.get('/api/asset-presets')).json();
+  const initial = await project();
+  expect((await request.post('/api/commands', {data: {revision: initial.revision, commands: [{type: 'project.clear'}, {type: 'project.settings', settings: {width: 640, height: 360, fps: 30}}]}})).ok()).toBe(true);
+  await page.goto('/'); await page.getByRole('button', {name: 'Presets', exact: true}).click();
+  await expect(page.getByRole('button', {name: 'Open Purple Glitch preset'})).toBeVisible();
+  await page.getByRole('button', {name: 'Create preset', exact: true}).click();
+  const editor = page.getByRole('dialog', {name: 'Create asset preset'});
+  await editor.getByRole('textbox', {name: 'Preset name', exact: true}).fill(''); // Clearing the name must not crash its preview.
+  await editor.getByRole('textbox', {name: 'Preset name', exact: true}).fill('Reusable UI Title');
+  await editor.getByRole('textbox', {name: 'Title', exact: true}).fill('MADE IN ASSET STUDIO');
+  await editor.getByRole('spinbutton', {name: 'Default duration'}).fill('1.5'); await editor.getByRole('spinbutton', {name: 'Default duration'}).press('Enter');
+  await editor.getByRole('button', {name: 'Save asset preset', exact: true}).click();
+  const detail = page.getByRole('dialog', {name: 'Reusable UI Title', exact: true}); await expect(detail).toBeVisible();
+  const saved = (await library()).presets.find(p => p.definition.name === 'Reusable UI Title')!;
+  const revision = (await project()).revision;
+  await detail.getByRole('button', {name: 'Add to timeline', exact: true}).click(); await expect(detail).not.toBeVisible();
+  await expect.poll(async () => (await project()).revision).toBe(revision + 1);
+  let clip = (await project()).clips.find((c: {kind: string}) => c.kind === 'graphic');
+  expect(clip.graphic.values.title).toBe('MADE IN ASSET STUDIO'); expect(clip.duration).toBe(45);
+  await page.getByRole('textbox', {name: 'Title', exact: true}).fill('INSTANCE ONLY'); await page.getByRole('spinbutton', {name: 'Animation length'}).click();
+  await expect.poll(async () => (await project()).clips[0].graphic.values.title).toBe('INSTANCE ONLY');
+  expect((await library()).presets.find(p => p.id === saved.id)?.definition.parameters.find(p => p.key === 'title')?.default).toBe('MADE IN ASSET STUDIO');
+  await page.getByRole('button', {name: 'Save as library variation'}).click(); await expect(page.getByText('Variation saved to Presets.')).toBeVisible();
+  await page.getByRole('button', {name: 'Undo timeline edit (Ctrl+Z)', exact: true}).click(); await expect(page.getByRole('textbox', {name: 'Title', exact: true})).toHaveValue('MADE IN ASSET STUDIO');
+  await page.screenshot({path: 'test-results/asset-studio.png'});
+  const download = await (await request.get(`/api/asset-presets/${saved.id}/download`)).body();
+  await page.getByRole('button', {name: 'Open Reusable UI Title preset', exact: true}).click();
+  await page.getByRole('button', {name: 'Delete library preset'}).click(); await page.getByRole('button', {name: 'Remove library preset', exact: true}).click();
+  await expect(page.getByRole('button', {name: 'Open Reusable UI Title preset', exact: true})).toHaveCount(0);
+  expect((await project()).clips[0].graphic.definition.name).toBe('Reusable UI Title');
+  await page.getByLabel('Import asset preset', {exact: true}).setInputFiles({name: 'shared.framecraft.json', mimeType: 'application/json', buffer: download});
+  await expect(page.getByRole('dialog', {name: 'Reusable UI Title', exact: true})).toBeVisible(); await page.getByRole('button', {name: 'Close reusable ui title'}).click();
+  await page.reload(); await page.getByRole('button', {name: 'Presets', exact: true}).click(); await expect(page.getByRole('button', {name: 'Open Reusable UI Title preset', exact: true})).toBeVisible();
+
+  const client = new Client({name: 'asset-preset-test', version: '1.0.0'});
+  await client.connect(new StdioClientTransport({command: process.execPath, args: [path.resolve('scripts/mcp.mjs')], env: {...process.env as Record<string, string>, FRAMECRAFT_URL: 'http://127.0.0.1:4319'}}));
+  const call = async (name: string, args: Record<string, unknown>) => {const result = await client.callTool({name, arguments: args}, undefined, {timeout: 120000}); expect(result.isError, JSON.stringify(result)).not.toBe(true); return result;};
+  try {
+    expect((await client.listTools()).tools.map(t => t.name)).toEqual(expect.arrayContaining(['list_asset_presets', 'save_asset_preset', 'apply_asset_preset', 'preview_asset_preset']));
+    const definition = {...structuredClone(presetStarters[0].definition), name: 'MCP Orange Glitch'};
+    const created = await call('save_asset_preset', {definition, expectedVersion: null}); const custom: SavedPreset = JSON.parse((created.content as {text: string}[])[0].text);
+    await expect(page.getByRole('button', {name: 'Open MCP Orange Glitch preset', exact: true})).toBeVisible();
+    const read = await call('list_asset_presets', {id: custom.id}); expect(JSON.parse((read.content as {text: string}[])[0].text).definition.layers).toHaveLength(3);
+    const previewRevision = (await project()).revision;
+    const rendered = await call('preview_asset_preset', {id: custom.id, version: 1, values: {accent: '#ff8800', intensity: 12}, progress: .5});
+    expect((rendered.content as {type: string; data?: string}[]).some(c => c.type === 'image' && c.data!.length > 1000)).toBe(true); expect((await project()).revision).toBe(previewRevision);
+    const image = (rendered.content as {type: string; data?: string}[]).find(c => c.type === 'image')!; await mkdir('test-results/assets', {recursive: true}); await writeFile('test-results/assets/transition.png', Buffer.from(image.data!, 'base64'));
+    for(const frame of [0, 30]) await call('apply_asset_preset', {id: 'orbit-background', version: 1, revision: (await project()).revision, frame, duration: 1, values: {accent: frame ? '#ff8800' : '#77ccff'}});
+    const incoming = (await project()).clips.find((c: {track: string; start: number}) => c.track === 'visual' && c.start === 30);
+    const card = page.getByRole('button', {name: 'Open MCP Orange Glitch preset', exact: true});
+    await card.dragTo(page.locator(`[data-clip-id="${incoming.id}"]`));
+    await expect.poll(async () => (await project()).clips.find((c: {id: string}) => c.id === incoming.id).presetTransition?.presetId).toBe(custom.id);
+    const current = await project();
+    await call('save_asset_preset', {id: custom.id, expectedVersion: 1, definition: {...definition, name: 'Glitch Version Two'}});
+    expect((await project()).clips.find((c: {id: string}) => c.id === incoming.id).presetTransition.version).toBe(1);
+    const stale = await request.post('/api/asset-presets/apply', {data: {id: custom.id, version: 1, revision: current.revision, frame: 0, clipId: incoming.id}}); expect(stale.status()).toBe(409);
+    expect((await project()).revision).toBe(current.revision);
+    const finalFrame = await call('render_frame', {frame: 40}); expect((finalFrame.content as {type: string}[]).some(c => c.type === 'image')).toBe(true);
+    const exportResult = await call('export_video', {revision: current.revision, settings: {width: 320, height: 180, fps: 24, audio: false}});
+    const {id} = JSON.parse((exportResult.content as {text: string}[])[0].text);
+    await expect.poll(async () => (await (await request.get(`/api/render/${id}`)).json()).status, {timeout: 120000}).toMatch(/done|error/);
+    const job = await (await request.get(`/api/render/${id}`)).json(); expect(job.status, job.error).toBe('done');
+    const file = path.resolve('test-results/assets/preset-export.mp4'); await writeFile(file, await (await request.get(job.url)).body());
+    const probe = JSON.parse(execFileSync(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', file], {encoding: 'utf8'})); expect([probe.streams[0].width, probe.streams[0].height]).toEqual([320, 180]);
+    await request.post('/api/agent/chat/start', {data: {fresh: true}});
+    await page.getByRole('complementary', {name: 'Inspector and Codex'}).getByRole('button', {name: 'Codex AI', exact: true}).click(); await page.getByRole('textbox', {name: 'Message Codex'}).fill('Create a green circular transition, save it to Asset Studio and apply it to my next clip.'); await page.getByRole('button', {name: 'Send', exact: true}).click();
+    // Explicit fake CLI protocol peer; generation request is real, no AI output is simulated in the app.
+    await expect(page.locator('.agent-message--user')).toContainText('Create a green circular transition'); await expect(page.locator('.agent-message--assistant')).toContainText('Codex reply');
+    expect(errors).toEqual([]);
+  } finally {await client.close();}
+});

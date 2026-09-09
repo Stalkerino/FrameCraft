@@ -1,0 +1,52 @@
+import {test, expect} from '@playwright/test';
+import {mkdir, writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import path from 'node:path';
+import {clipSchema} from '../../shared/project';
+import {presetDefinitionSchema} from '../../shared/asset-presets';
+
+test('multiple tracks preserve layer order and locked canvas positions while clips remain editable', async ({page, request}) => {
+  const project = async () => (await (await request.get('/api/project')).json()).project;
+  const execute = async (commands: unknown[]) => {const response = await request.post('/api/commands', {data: {revision: (await project()).revision, commands}}); expect(response.ok(), await response.text()).toBe(true);};
+  await execute([{type: 'clips.replace', clips: [clipSchema.parse({id: 'lock-target', name: 'Lock target', kind: 'text', track: 'text', start: 0, duration: 90, text: 'CLICK WITHOUT MOVING', x: 50, y: 40, fontSize: 32, animation: 'none'})]}, {type: 'project.settings', settings: {width: 640, height: 360, fps: 30}}]);
+  await page.goto('/'); const target = page.getByRole('button', {name: 'Move Lock target on canvas', exact: true}); await expect(target).toBeVisible();
+  const box = (await target.boundingBox())!; const revision = (await project()).revision;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 2, box.y + box.height / 2 + 1); await page.mouse.up();
+  expect((await project()).revision).toBe(revision);
+  const toggle = page.getByRole('switch', {name: 'Lock position', exact: true}); await toggle.click(); await expect(toggle).toBeChecked();
+  await expect(page.getByRole('spinbutton', {name: 'Position X', exact: true})).toBeDisabled();
+  const locked = page.getByRole('button', {name: 'Select Lock target on canvas', exact: true}); const lockedBox = (await locked.boundingBox())!;
+  await page.mouse.move(lockedBox.x + 10, lockedBox.y + 10); await page.mouse.down(); await page.mouse.move(lockedBox.x + 60, lockedBox.y + 40); await page.mouse.up(); await locked.focus(); await page.keyboard.press('ArrowRight');
+  expect([(await project()).clips[0].x, (await project()).clips[0].y]).toEqual([50, 40]);
+  await page.getByRole('textbox', {name: 'Text content'}).fill('STILL EDITABLE'); await page.getByRole('spinbutton', {name: 'Scale', exact: true}).click();
+  await expect.poll(async () => (await project()).clips[0].text).toBe('STILL EDITABLE');
+  const corner = (await page.getByRole('button', {name: 'Resize Lock target se'}).boundingBox())!;
+  await page.mouse.move(corner.x + 5, corner.y + 5); await page.mouse.down(); await page.mouse.move(corner.x + 35, corner.y + 20, {steps: 5}); await page.mouse.up();
+  await expect.poll(async () => (await project()).clips[0].scale).toBeGreaterThan(1); expect([(await project()).clips[0].x, (await project()).clips[0].y]).toEqual([50, 40]);
+  const add = async (type: string) => {await page.getByRole('button', {name: 'Add track', exact: true}).click(); await page.getByRole('button', {name: `Add ${type} track`, exact: true}).click(); await expect(page.getByRole('button', {name: 'Add track', exact: true})).toBeEnabled();};
+  await add('text'); const textTrack = (await project()).tracks.find((t: {name: string}) => t.name === 'Text 2');
+  const clip = page.locator('[data-clip-id="lock-target"]'); await clip.scrollIntoViewIfNeeded(); const clipBox = (await clip.boundingBox())!; const destination = (await page.locator(`.track-area[data-track-id="${textTrack.id}"]`).boundingBox())!;
+  await page.mouse.move(clipBox.x + 40, clipBox.y + 12); await page.mouse.down(); await page.mouse.move(clipBox.x + 40, destination.y + 20, {steps: 8}); await page.mouse.up();
+  await expect.poll(async () => (await project()).clips[0].trackId).toBe(textTrack.id); expect((await project()).clips[0].positionLocked).toBe(true);
+  await add('video'); await add('audio'); await expect.poll(async () => (await project()).tracks.length).toBe(6);
+  await page.getByRole('button', {name: 'Settings for Video 2', exact: true}).click(); const settings = page.getByRole('dialog', {name: 'Track settings'});
+  await settings.getByRole('textbox', {name: 'Track name'}).fill('Picture in picture'); await settings.getByRole('button', {name: 'Done', exact: true}).click();
+  await expect(page.getByRole('button', {name: 'Settings for Picture in picture', exact: true})).toBeVisible();
+  await page.reload(); expect((await project()).clips[0].positionLocked).toBe(true); await page.getByRole('button', {name: 'Presets', exact: true}).click();
+  await expect(page.getByRole('textbox', {name: 'Describe an asset'})).toHaveCount(0); await page.screenshot({path: 'test-results/multiple-tracks.png'});
+
+  const state = await project(); const upper = state.tracks.find((t: {name: string}) => t.name === 'Picture in picture');
+  const graphic = (id: string, trackId: string, fill: string) => clipSchema.parse({id, name: id, kind: 'graphic', track: 'visual', trackId, start: 0, duration: 30, graphic: {presetId: id, version: 1, values: {}, duration: 1, definition: presetDefinitionSchema.parse({schemaVersion: 1, name: id, category: 'background', layers: [{id: 'fill', type: 'rect', width: 100, height: 100, fill}]})}});
+  await execute([{type: 'clips.replace', clips: [graphic('red', 'visual', '#ff0000'), graphic('blue', upper.id, '#0000ff')]}]);
+  const pixel = async (name: string) => {
+    const job = await (await request.post('/api/render', {data: {kind: 'frame', frame: 10}})).json();
+    await expect.poll(async () => (await (await request.get(`/api/render/${job.id}`)).json()).status, {timeout: 120000}).toMatch(/done|error/);
+    const done = await (await request.get(`/api/render/${job.id}`)).json(); expect(done.status, done.error).toBe('done');
+    await mkdir('test-results/tracks', {recursive: true}); const file = path.resolve(`test-results/tracks/${name}.png`); await writeFile(file, await (await request.get(done.url)).body());
+    return [...execFileSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-v', 'error', '-i', file, '-vf', 'crop=1:1:100:100', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])];
+  };
+  expect(await pixel('blue-above')).toEqual([0, 0, 255]);
+  const order = (await project()).tracks; const steps = order.length - 1 - order.findIndex((t: {id: string}) => t.id === upper.id);
+  await execute(Array.from({length: steps}, () => ({type: 'track.move', id: upper.id, direction: 'down'})));
+  expect(await pixel('red-above')).toEqual([255, 0, 0]);
+});

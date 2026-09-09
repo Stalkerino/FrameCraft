@@ -1,0 +1,27 @@
+@use '../abstracts/tokens' as *;
+.preview {container-type: inline-size; container-name: monitor;}
+.preview__heading {min-height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--border-subtle); background: #171c23;}
+.preview__identity {display: flex; align-items: center; gap: 12px; min-width: 0;}
+.preview__title {font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap;}
+.preview__sequence-name {font-size: 11px; color: var(--muted); @include ellipsis;}
+.preview__meta {display: flex; align-items: center; gap: 3px; flex-shrink: 0; .icon-button {width: 27px; height: 27px;}}
+.preview__zoom select {height: 25px; border: 1px solid var(--border); border-radius: 4px; background: #222a34; padding: 0 6px; font-size: 10px;}
+.meta-divider {width: 1px; height: 10px; background: var(--border);}
+.preview__stage {flex: 1; min-height: 0; min-width: 0; @include flex-center; padding: 14px; overflow: hidden; background: #0b0e12;}
+.preview__canvas {position: relative; width: 100%; max-height: 100%; aspect-ratio: 16/9; flex-shrink: 0; overflow: hidden; background: #080c0e; outline: 1px solid #ffffff14; box-shadow: 0 10px 24px #0005; > div:first-child {max-height: 100%;}}
+.preview__stage--zoomed {display: block; overflow: auto; .preview__canvas {max-height: none; margin: auto; > div:first-child {max-height: none;}}}
+.safe-guides {position: absolute; pointer-events: none; inset: 5%; border: 1px dashed #ffffff55; &::after {content: ''; position: absolute; inset: 5%; border: 1px dashed #ffffff33;} span {font-size: 8px; letter-spacing: 1px; color: #fff9; position: absolute; top: 3px; left: 4px;}}
+.preview__controls {min-height: 48px; flex-shrink: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 7px 12px; border-top: 1px solid var(--border-subtle); background: #171c23;}
+.timecode {font-size: 11px; color: #deebf8; font-variant-numeric: tabular-nums; white-space: nowrap; span {color: var(--muted); padding-left: 4px;}}
+.transport {display: flex; justify-content: center; align-items: center; gap: 3px; .icon-button {width: 25px; height: 27px;}}
+.play-button {width: 34px; height: 30px; @include flex-center; color: var(--accent); background: var(--accent-soft); border: 1px solid #74dfd033; border-radius: 5px; margin: 0 2px; padding: 0; &:hover {background: #74dfd024; border-color: var(--accent);}}
+.preview__utilities {display: flex; align-items: center; justify-content: flex-end; gap: 2px; .icon-button {width: 26px; height: 27px;}}
+.preview__status {display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; flex-shrink: 0; gap: 5px 10px; min-height: 33px; padding: 5px 12px; color: var(--muted); font-size: 10px; background: #141920; border-top: 1px solid var(--border-subtle);}
+.preview__format {white-space: nowrap;}
+.preview__source-quality {color: var(--muted-strong); font-size: 10px; flex: 1; text-align: center;}
+.preview__quality {display: flex; align-items: center; gap: 6px; font-size: 10px; select {max-width: 150px; min-width: 0; padding: 3px 5px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-raised); font-size: 10px;}}
+.preview__preparation:has(> *) {padding: 6px 12px; background: #1b2830; border-top: 1px solid var(--border);}
+.canvas-empty {position: absolute; inset: 0; pointer-events: none; @include flex-center; flex-direction: column; color: var(--muted); gap: 10px; padding: 20px; text-align: center; h3 {font-size: 15px; color: var(--text); font-weight: 500;} p {font-size: 11px; line-height: 1.6;} > svg {color: #7897a0; margin-bottom: 4px;}}
+.player-error {height: 100%; padding: 24px; @include flex-center; flex-direction: column; color: var(--danger); text-align: center; span {font-size: 11px; margin-top: 10px;}}
+.fatal-error {padding: 10vh 10vw; h1 {font-size: 24px;} p {color: var(--muted); margin-top: 20px;} button {background: var(--accent); color: #151a16; border-radius: 7px; padding: 12px 20px; margin-top: 20px;}}
+@container monitor (max-width: 540px) {.preview__sequence-name {display: none;} .preview__controls {grid-template-columns: 1fr auto;} .transport {grid-column: 1 / -1; grid-row: 2;} .preview__utilities {grid-column: 2; grid-row: 1;} .preview__format {font-size: 9px;} .preview__source-quality {order: 3; flex-basis: 100%; text-align: left;}}

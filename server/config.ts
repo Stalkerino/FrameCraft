@@ -1,0 +1,14 @@
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {parseArgs} from 'node:util';
+const {values} = parseArgs({options: {host: {type: 'string'}, port: {type: 'string'}}, strict: false, allowPositionals: true});
+export const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+export const dataDir = path.resolve(process.env.FRAMECRAFT_DATA_DIR || path.join(rootDir, 'data'));
+export const host = typeof values.host === 'string' ? values.host : process.env.FRAMECRAFT_HOST || '127.0.0.1';
+export const port = Number(values.port || process.env.PORT || 4318);
+if(!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be an integer between 1 and 65535.');
+export const baseUrl = `http://127.0.0.1:${port}`;
+export const mediaDir = path.join(dataDir, 'media');
+export const exportDir = path.join(dataDir, 'exports');
+export const thumbnailDir = path.join(dataDir, 'thumbnails');
+export const libraryDir = path.resolve(process.env.FRAMECRAFT_LIBRARY_DIR || path.join(rootDir, 'data', 'asset-library'));

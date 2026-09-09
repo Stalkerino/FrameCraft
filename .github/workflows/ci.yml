@@ -1,0 +1,30 @@
+name: Verify Windows and Linux
+on: [push, pull_request]
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install FFmpeg on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install FFmpeg on Windows
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+      - run: npm test
+      - run: npx playwright install --with-deps chromium firefox
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results-${{ matrix.os }}
+          path: test-results/

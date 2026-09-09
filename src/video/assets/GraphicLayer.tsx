@@ -1,0 +1,9 @@
+import {useCurrentFrame} from 'remotion';
+import type {Clip, Project} from '../../../shared/project';
+import {zoomAtFrame} from '../../../shared/clip-animation';
+import {PresetArtwork} from './PresetArtwork';
+export function GraphicLayer({clip, project}: {clip: Clip; project: Project}) {
+  const frame = useCurrentFrame(); const instance = clip.graphic; if(!instance) return null;
+  const progress = Math.min(1, (frame + (clip.motionOffset ?? 0)) / Math.max(1, Math.round(instance.duration * project.fps) - 1));
+  return <div data-preview-clip={clip.id} style={{position: 'absolute', inset: 0, transform: `translate(${clip.x - 50}%, ${clip.y - 50}%) scale(${clip.scale * zoomAtFrame(clip, frame)})`, transformOrigin: `${clip.zoom?.x ?? 50}% ${clip.zoom?.y ?? 50}%`}}><PresetArtwork definition={instance.definition} values={instance.values} progress={progress} width={project.width} height={project.height}/></div>;
+}

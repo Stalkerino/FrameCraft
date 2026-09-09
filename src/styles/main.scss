@@ -1,0 +1,24 @@
+// 7–1 architecture: seven responsibility folders, one stylesheet entry.
+@use 'abstracts/tokens';
+@use 'vendors/remotion';
+@use 'base/reset';
+@use 'base/typography';
+@use 'themes/dark';
+@use 'layout/editor';
+@use 'components/controls';
+@use 'components/media';
+@use 'components/timeline';
+@use 'components/inspector';
+@use 'components/audio-properties';
+@use 'components/agent';
+@use 'components/agent-model-settings';
+@use 'components/assist';
+@use 'components/gameplay';
+@use 'components/preview-selection';
+@use 'components/preview-recovery';
+@use 'components/settings';
+@use 'components/encoder-settings';
+@use 'components/projects';
+@use 'components/asset-studio';
+@use 'components/sound-library';
+@use 'pages/studio';
