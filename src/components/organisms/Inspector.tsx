@@ -8,6 +8,7 @@ import {PropertySection} from '../atoms/PropertySection';
 import {transitions} from '../../video/effects/registry';
 import {CodexPanel} from './CodexPanel';
 import {AudioProperties} from './AudioProperties';
+import {ClipColorGrading} from './ClipColorGrading';
 import {OverlayProperties} from '../molecules/OverlayProperties';
 import {PresetInstanceProperties} from '../molecules/PresetInstanceProperties';
 import {durationOf, formatTimecode, type Clip, type EffectName} from '../../../shared/project';
@@ -60,9 +61,11 @@ function ClipProperties({clip}: {clip: Clip}) {
       {clip.track !== 'audio' && <PropertySection title="Transform" summary={clip.positionLocked ? 'Position locked' : `${Math.round(clip.scale * 100)}%`}>
         <label className="position-lock"><LockKeyhole size={13}/><span>Lock position</span><input type="checkbox" role="switch" aria-label="Lock position" checked={clip.positionLocked} onChange={event => patch({positionLocked: event.target.checked}, event.target.checked ? 'Locked element position' : 'Unlocked element position')}/></label>
         <div className="field-row"><NumberField disabled={clip.positionLocked} label="Position X" value={clip.x} max={100} step={0.5} suffix="%" onCommit={x => patch({x})}/><NumberField disabled={clip.positionLocked} label="Position Y" value={clip.y} max={100} step={0.5} suffix="%" onCommit={y => patch({y})}/></div><NumberField label="Scale" value={Math.round(clip.scale * 100)} min={10} max={400} suffix="%" onCommit={scale => patch({scale: scale / 100})}/>
+        <NumberField label="Opacity" value={Math.round((clip.opacity ?? 1) * 100)} max={100} suffix="%" onCommit={opacity => patch({opacity: opacity / 100}, 'Changed clip opacity')}/>
         <p className="field-help">Drag the selected element in the preview to position it. Use its handles to resize.</p>
       </PropertySection>}
       <OverlayProperties clip={clip} patch={patch}/>
+      {(clip.kind === 'video' || clip.kind === 'image') && <ClipColorGrading clip={clip}/>}
       <PresetInstanceProperties clip={clip} patch={patch}/>
       {clip.kind === 'text' && <PropertySection title="Text animation" defaultOpen={false} summary={clip.animation === 'none' ? 'None' : clip.animation === 'rise' ? 'Fade & rise' : 'Typewriter'}><Field label="Entrance"><select aria-label="Text animation" value={clip.animation} onChange={event => patch({animation: event.target.value as Clip['animation']})}><option value="none">None</option><option value="rise">Fade & rise</option><option value="typewriter">Typewriter</option></select></Field></PropertySection>}
       {clip.track === 'visual' && <PropertySection title="Transition in" summary={transitionName} defaultOpen={clip.transition !== 'none' || !!clip.presetTransition}>

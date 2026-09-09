@@ -5,8 +5,9 @@ import {clipTrackId, projectTracks, trackClips} from './tracks';
 import {resolvePresetValues, scalarAt} from './asset-presets';
 import {zoomAtFrame} from './clip-animation';
 import {shiftAudioEnvelope, type AudioEnvelope} from './audio-envelope';
+import type {ColorGrade} from './color-grading';
 
-export interface VideoSegment {start: number; duration: number; sourceStart: number; volume: number; audioEnvelope?: AudioEnvelope | null; asset: Asset}
+export interface VideoSegment {start: number; duration: number; sourceStart: number; volume: number; audioEnvelope?: AudioEnvelope | null; colorGrade?: ColorGrade | null; projectColorGrade?: ColorGrade | null; opacity?: number; backgroundColor?: string; asset: Asset}
 export interface OverlayRun {frame: number; duration: number}
 export interface LayeredRenderPlan {baseTrackId: string; firstFrame: number; lastFrame: number; segments: VideoSegment[]; overlayFrames: number[]; overlayRuns: OverlayRun[]}
 export interface OverlayRenderPass {omitTrackId: string}
@@ -34,7 +35,7 @@ export function layeredRenderPlan(project: Project, settings: ExportSettings): L
     const start = Math.max(firstFrame, clip.start); const end = Math.min(lastFrame + 1, clip.start + clip.duration);
     if(start !== cursor) return null;
     segments.push({start, duration: end - start, sourceStart: clip.sourceStart + start - clip.start,
-      volume: base.muted ? 0 : clip.volume * (project.masterVolume ?? 1), ...(clip.audioEnvelope ? {audioEnvelope: shiftAudioEnvelope(clip.audioEnvelope, start - clip.start)} : {}), asset});
+      volume: base.muted ? 0 : clip.volume * (project.masterVolume ?? 1), ...(clip.audioEnvelope ? {audioEnvelope: shiftAudioEnvelope(clip.audioEnvelope, start - clip.start)} : {}), colorGrade: clip.colorGrade, projectColorGrade: project.colorGrade, opacity: clip.opacity, backgroundColor: project.backgroundColor, asset});
     cursor = end;
   }
   if(cursor !== lastFrame + 1) return null;

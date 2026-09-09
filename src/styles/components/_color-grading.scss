@@ -1,0 +1,9 @@
+.color-grade-fields {
+  > .field-row {margin-top: 10px; &:first-child {margin-top: 0;}}
+  > .field {margin-top: 10px;}
+  > .field-help {margin-top: 9px; font-size: 10px; line-height: 1.6; color: var(--muted-strong);}
+  &__reset {display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; color: var(--muted-strong); font-size: 10px;
+    &:hover:not(:disabled) {color: var(--accent);}
+    &:disabled {opacity: .45; cursor: default;}
+  }
+}

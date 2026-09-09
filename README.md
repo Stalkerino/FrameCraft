@@ -16,6 +16,7 @@ Framecraft is a local video editor for devlogs, gameplay breakdowns, tutorials, 
 | Split, trim, copy, paste, duplicate, and undo/redo | Inspect source images and composited frames through MCP |
 | Drag and resize elements directly in the preview | Review gameplay with no narration and propose an edit |
 | Titles, annotations, focus zooms, and transitions | Generate editable animations and save them for reuse |
+| Clip and project color adjustments | Grade selected clips, tracks or timeline sections through MCP |
 | Saved sound effects with real audio preview | Generate whooshes, impacts and interface cues locally, then let Codex place them |
 | Resizable Edit, Review, and AI edit layouts | Transcribe speech, cut by words, and generate captions |
 | Named projects, autosave, and shared preset library | Type or dictate into the existing Codex conversation |
@@ -56,6 +57,10 @@ The editor works without Codex. To use the embedded agent, install Codex CLI, si
 Originals are copied into project media storage. Full-quality playback uses supported originals or an on-demand, full-resolution compatibility copy; **Performance** deliberately selects a smaller playback copy. Export always reads original media. Project and export resolution are separate settings.
 
 Exports support H.264, H.265, AV1, VP8/VP9, and ProRes with compatible containers and audio settings. AMD uses VA-API on Linux and AMF on Windows; NVIDIA uses NVENC. Availability depends on the GPU, driver, and FFmpeg build. GPU compression, sequential source decoding where eligible, reused artwork frames, and bounded worker/buffer settings keep the export pipeline practical without promising real-time rendering on every machine.
+
+Adjust individual clips or finish the whole timeline with exposure, contrast, saturation, temperature, tint, gamma and hue; visual elements also have an opacity control. Codex can apply these adjustments through the same editing tools—see [color grading](docs/color-grading.md).
+
+![Framecraft color grading and opacity controls with the adjusted program preview](docs/screenshots/color-grading.png)
 
 ## Reusable assets and comparisons
 
@@ -118,7 +123,7 @@ On Windows, use a path such as `C:\Projects\Framecraft\scripts\mcp.mjs`. Registr
 
 ## Current scope
 
-Framecraft is an early local editor. It has no general-purpose crop/mask editor, arbitrary video keyframe curves, speed ramps, motion tracking, color-grading suite, or desktop installer. Graphic recipes support their own parameterized keyframes. Comparison presets decorate/reveal clips; they do not automatically synchronize recordings or create a complete timeline layout.
+Framecraft is an early local editor. It has no general-purpose crop/mask editor, arbitrary video keyframe curves, speed ramps, motion tracking, or desktop installer. Basic [color grading](docs/color-grading.md) supports exposure, contrast, saturation, temperature, tint, gamma and hue; advanced LUT/scopes/HDR workflows are not available. Graphic recipes support their own parameterized keyframes. Comparison presets decorate/reveal clips; they do not automatically synchronize recordings or create a complete timeline layout.
 
 Codex can remove or assemble timeline ranges across all tracks or an explicit subset, with a preview and one undo step. Persistent linked-clip groups are not available. Audio supports fades, gain automation, clip-range ducking, and rendered EQ/compression/room-reverb copies; this is not a live plugin or sidechain rack. See [audio editing](docs/audio-editing.md), [whole-sequence editing](docs/timeline-editing.md), and [multi-track capabilities](docs/feature-overview.md#editing-an-existing-multi-track-timeline).
 

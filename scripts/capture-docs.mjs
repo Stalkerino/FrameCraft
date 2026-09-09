@@ -11,9 +11,11 @@ import {demoArtwork} from '../shared/demo.ts';
 import {comparisonCommands} from './docs-scene.ts';
 
 // Run with `node --import tsx scripts/capture-docs.mjs` after npm run build.
+// Add --color-only to update the grading screenshot without regenerating media.
 // Every project, imported file and server process belongs to this isolated capture.
 // Codex is never started: its screenshot shows a disconnected panel and an unsent draft.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const colorOnly = process.argv.includes('--color-only');
 const screenshots = path.join(root, 'docs', 'screenshots');
 const executablePath = process.env.CHROME_PATH || (process.platform === 'linux' && existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : chromium.executablePath());
 if(!existsSync(path.join(root, 'dist', 'index.html'))) throw new Error('Build the editor first with npm run build.');
@@ -104,8 +106,32 @@ try {
     await page.reload();
     await page.getByText('All changes saved', {exact: true}).waitFor();
   }
+  async function captureColorGrading() {
+    const project = (await api('/api/project')).project;
+    await api('/api/commands', {revision: project.revision, label: 'Prepare documentation color grade', commands: [{type: 'clip.update', id: 'scene-1', patch: {opacity: .85, colorGrade: {exposure: .2, temperature: .5, contrast: 1.1, saturation: .85}}}]});
+    const viewport = page.viewportSize();
+    await page.setViewportSize({width: 1600, height: 1100});
+    await layout({libraryWidth: 290, inspectorWidth: 380, timelineHeight: 220});
+    await page.getByRole('navigation', {name: 'Editor tools'}).getByRole('button', {name: 'Media', exact: true}).click();
+    await page.getByRole('button', {name: 'Select The new world', exact: true}).click();
+    await seek(2);
+    for(const title of ['Timing & track', 'Transition in', 'Audio']) {
+      const opened = page.locator('.inspector details[open] > summary').filter({has: page.getByRole('heading', {name: title, exact: true})});
+      if(await opened.count()) await opened.click();
+    }
+    const grading = page.locator('.inspector details > summary').filter({has: page.getByRole('heading', {name: 'Color grading', exact: true})});
+    await grading.click();
+    await page.getByRole('spinbutton', {name: 'Exposure', exact: true}).waitFor();
+    if(await page.getByRole('spinbutton', {name: 'Opacity', exact: true}).inputValue() !== '85') throw new Error('The grading screenshot did not load its opacity edit.');
+    const canvasEditing = page.getByRole('button', {name: 'Edit elements on canvas', exact: true});
+    if(await canvasEditing.getAttribute('aria-pressed') === 'true') await canvasEditing.click();
+    await capture('color-grading');
+    await page.setViewportSize(viewport);
+  }
   await page.goto('/');
   await page.getByRole('textbox', {name: 'Text content'}).waitFor();
+  if(colorOnly) await captureColorGrading();
+  else {
   await seek(2);
   await capture('studio');
 
@@ -146,12 +172,14 @@ try {
   await page.getByRole('dialog', {name: 'Sound settings', exact: true}).waitFor();
   await capture('sounds');
   await page.getByRole('button', {name: 'Close sound settings', exact: true}).click();
+  await captureColorGrading();
 
   await layout({libraryWidth: 290, inspectorWidth: 500, timelineHeight: 300});
   await page.getByRole('complementary', {name: 'Inspector and Codex'}).getByRole('button', {name: 'Codex AI', exact: true}).click();
   await page.getByRole('textbox', {name: 'Message Codex'}).fill('Compare the two lighting passes with a left-to-right wipe. Add BEFORE / AFTER labels, then save the transition so I can reuse it in my next devlog.');
   await seek(2);
   await capture('codex');
+  }
   if(errors.length) throw new Error(`The captured UI reported errors: ${errors.join('\n')}`);
   for(const obsolete of ['codex-chat.png', 'codex-expanded.png']) await rm(path.join(screenshots, obsolete), {force: true});
 } finally {

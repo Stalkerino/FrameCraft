@@ -35,6 +35,8 @@ import {AudioMixService} from './services/audio-mix-service';
 import {audioMixRoutes} from './routes/audio-mix-routes';
 import {SoundLibraryService} from './services/sound-library-service';
 import {soundRoutes} from './routes/sound-routes';
+import {ColorGradingService} from './services/color-grading-service';
+import {colorGradingRoutes} from './routes/color-grading-routes';
 
 export async function createApp() {
   const app = express();
@@ -49,6 +51,7 @@ export async function createApp() {
   const presetRepository = new PresetRepository(libraryDir); await presetRepository.init();
   const presets = new PresetService(presetRepository, repository, renders);
   const timeline = new TimelineService(repository);
+  const grading = new ColorGradingService(repository);
   const audioEffects = new AudioEffectsService(repository, media, mediaFiles, path.join(dataDir, 'audio-cache'));
   const audioMix = new AudioMixService(repository);
   const sounds = new SoundLibraryService(libraryDir, media, repository); await sounds.init();
@@ -80,6 +83,7 @@ export async function createApp() {
   app.use('/visual-rush/images', express.static(path.join(dataDir, 'visual-rush', 'images'), {dotfiles: 'deny'}));
   app.use('/api/asset-presets', presetRoutes(presets));
   app.use('/api/timeline', timelineRoutes(timeline));
+  app.use('/api/color-grading', colorGradingRoutes(grading));
   app.use('/api/audio', audioMixRoutes(audioMix));
   app.use('/api/audio-effects', audioEffectsRoutes(audioEffects));
   app.use('/api/sounds', soundRoutes(sounds));

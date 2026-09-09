@@ -13,6 +13,8 @@ import type {RenderProgress} from './render-engine';
 import {filterFrameBudget} from './render-resources-service';
 import {EncodingStalledError, runEncodingProcess} from './ffmpeg-progress-service';
 import {normalizeArtworkFrames} from './artwork-image-service';
+import {isNeutralColorGrade} from '../../shared/color-grading';
+import {ColorGradeLutService} from './color-grade-lut-service';
 
 interface SourceInfo {audio: boolean; pixelFormat: string; width: number; height: number; rotation: number; sar: string}
 interface HardwareDecoder {input: string[]; filter: string}
@@ -32,6 +34,8 @@ export async function renderLayeredVideo({plan, settings, workspace, output, har
   const filterList = await runProcess(binary, ['-hide_banner', '-filters'], 10000).catch(() => '');
   const filters = new Set(filterList.split('\n').map(line => line.trim().split(/\s+/)[1]));
   if(['fps', 'scale', 'setsar', 'tpad', 'trim', 'setpts', 'format', 'overlay', 'zscale', 'asetpts', 'aresample', 'volume', 'apad', 'atrim', 'anullsrc'].some(filter => !filters.has(filter))) return false;
+  if(plan.segments.some(segment => !isNeutralColorGrade(segment.colorGrade) || !isNeutralColorGrade(segment.projectColorGrade) || (segment.opacity ?? 1) !== 1) && (!filters.has('lut3d') || !filters.has('lutrgb'))) return false;
+  const grading = new ColorGradeLutService(directory);
   // Older FFmpeg builds (including Windows installs) lack this safety option.
   const help = await runProcess(binary, ['-hide_banner', '-h', 'long'], 10000).catch(() => '');
   const canLimitBuffers = help.includes('-filter_buffered_frames');
@@ -78,10 +82,11 @@ export async function renderLayeredVideo({plan, settings, workspace, output, har
       await writeFile(overlay, lines.join('\n') + '\n');
     }
     const source = sources.get(segment.asset.id)!;
+    const colorFilter = await grading.ensure(segment.colorGrade, segment.projectColorGrade, segment.opacity, segment.backgroundColor);
     const audioSamples = Math.round((encoded + segment.duration) / settings.fps * settings.sampleRate) - Math.round(encoded / settings.fps * settings.sampleRate);
     const maxBufferedFrames = canLimitBuffers ? filterFrameBudget(Math.max(settings.width, source.info.width), Math.max(settings.height, source.info.height)) : undefined;
     const encode = async () => {
-      const args = segmentArguments({segment, settings, source: source.file, hasAudio: source.info.audio, decoder: source.decoder, overlay, output: part, audioSamples, maxBufferedFrames});
+      const args = segmentArguments({segment, settings, source: source.file, hasAudio: source.info.audio, decoder: source.decoder, overlay, output: part, audioSamples, maxBufferedFrames, colorFilter});
       const finalArgs = hardware ? hardwareEncodingArguments(args, hardware, settings) : args;
       const decoding = source.decoder ? 'GPU decoding' : 'CPU decoding';
       onProgress({phase: 'Encoding video', progress: .45 + encoded / total * .5, detail: `${label} · ${decoding} · clip ${index + 1} / ${plan.segments.length}`});
@@ -114,8 +119,8 @@ export async function renderLayeredVideo({plan, settings, workspace, output, har
   return true;
 }
 
-export function segmentArguments({segment, settings, source, hasAudio, overlay, output, audioSamples, decoder, maxBufferedFrames}: {
-  segment: VideoSegment; settings: ExportSettings; source: string; hasAudio: boolean; overlay?: string; output: string; audioSamples: number; decoder?: HardwareDecoder; maxBufferedFrames?: number;
+export function segmentArguments({segment, settings, source, hasAudio, overlay, output, audioSamples, decoder, maxBufferedFrames, colorFilter}: {
+  segment: VideoSegment; settings: ExportSettings; source: string; hasAudio: boolean; overlay?: string; output: string; audioSamples: number; decoder?: HardwareDecoder; maxBufferedFrames?: number; colorFilter?: string;
 }): string[] {
   const duration = segment.duration / settings.fps;
   const args = ['-hide_banner', '-loglevel', 'error', '-nostdin', ...(maxBufferedFrames ? ['-filter_buffered_frames', String(maxBufferedFrames)] : []),
@@ -125,7 +130,7 @@ export function segmentArguments({segment, settings, source, hasAudio, overlay, 
   const audioInput = hasAudio && segment.volume > 0 ? '0:a:0' : `${nextInput}:a:0`;
   if(settings.audio && (!hasAudio || segment.volume === 0)) args.push('-f', 'lavfi', '-i', `anullsrc=r=${settings.sampleRate}:cl=stereo`);
   const baseFilter = `${decoder ? decoder.filter + ',' : ''}setpts=PTS-STARTPTS,fps=${settings.fps}:start_time=0,scale=${settings.width}:${settings.height}:flags=lanczos,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=end_frame=${segment.duration},setpts=N/(${settings.fps}*TB)`;
-  const filters = [`[0:v:0]${baseFilter}[base]`];
+  const filters = [`[0:v:0]${baseFilter}${colorFilter ? `,${colorFilter}` : ''}[base]`];
   // Keep artwork sparse. Expanding long holds with fps creates an independently
   // advancing input and can queue gigabytes of base frames waiting for artwork.
   // Overlay framesync holds the latest PNG until its next timestamp; the base

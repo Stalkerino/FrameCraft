@@ -6,6 +6,7 @@ import {audioEnvelopeSchema, shiftAudioEnvelope} from './audio-envelope';
 import {acceptsClip, clipTrackId, projectTracks, trackSchema, trackTypeName} from './tracks';
 import {editTimelineRanges, timelineRangeEditSchema} from './timeline-ranges';
 import {audioProcessingSchema} from './audio-effects';
+import {colorGradeSchema} from './color-grading';
 
 export const effectNames = ['none', 'fade', 'slide', 'diagonal', 'pixel'] as const;
 export const assetSchema = z.object({
@@ -28,7 +29,9 @@ export const clipSchema = z.object({
   audioEnvelope: audioEnvelopeSchema.nullable().optional(),
   x: z.number().min(0).max(100).default(50), y: z.number().min(0).max(100).default(50),
   scale: z.number().min(0.1).max(4).default(1),
+  opacity: z.number().min(0).max(1).default(1),
   positionLocked: z.boolean().default(false).describe('Preserve x/y while locked. Only explicitly unlock when the user requests it.'),
+  colorGrade: colorGradeSchema.nullable().optional(),
   motionOffset: z.number().int().nonnegative().optional(),
   text: z.string().max(2000).default(''), fontSize: z.number().min(4).max(2000).default(88),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#ffffff'),
@@ -45,6 +48,7 @@ export const projectSchema = z.object({
   revision: z.number().int().nonnegative(), width: dimensionSchema, height: dimensionSchema, fps: fpsSchema,
   backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), masterVolume: z.number().min(0).max(1).optional(), exportSettings: exportSettingsSchema.optional(),
   assets: z.array(assetSchema).max(1000), clips: z.array(clipSchema),
+  colorGrade: colorGradeSchema.nullable().optional(),
   tracks: z.array(trackSchema).max(64).optional(),
 });
 export type Asset = z.infer<typeof assetSchema>;
@@ -59,6 +63,7 @@ export const formatTime = (frames: number, fps = 30) => {
 export const formatTimecode = (frames: number, fps = 30) => `${formatTime(frames, fps)}:${String(Math.floor(frames - Math.floor(frames / fps) * fps + 1e-7)).padStart(2, '0')}`;
 
 export const commandSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('project.color-grade'), grade: colorGradeSchema.nullable()}),
   timelineRangeEditSchema.extend({type: z.literal('timeline.edit-ranges')}),
   z.object({type: z.literal('clip.add'), clip: clipSchema}),
   z.object({type: z.literal('clips.replace'), clips: z.array(clipSchema)}),
@@ -95,6 +100,7 @@ export function validateProject(project: Project): Project {
     if(!track || track.type !== clip.track) throw new Error('Clip needs a matching timeline track');
     if(clip.caption && clip.kind !== 'text') throw new Error('Captions require a text clip');
     if(clip.audioEnvelope && clip.kind !== 'video' && clip.kind !== 'audio') throw new Error('Audio envelopes require a video or audio clip');
+    if(clip.colorGrade && clip.kind !== 'video' && clip.kind !== 'image') throw new Error('Color grading requires a video or image clip');
     if(clip.zoom && clip.track !== 'visual') throw new Error('Zoom requires a visual clip');
     if(clip.presetTransition && (clip.track !== 'visual' || clip.presetTransition.definition.category !== 'transition')) throw new Error('A transition preset requires a visual clip');
     if(clip.graphic && clip.kind !== 'graphic') throw new Error('Graphic recipes require a graphic clip');
@@ -130,6 +136,7 @@ export function applyCommand(current: Project, input: Command): Project {
   const editableTracks = () => project.tracks ?? (project.tracks = structuredClone(projectTracks(project)));
   const findTrack = (id: string) => {const track = editableTracks().find(t => t.id === id); if(!track) throw new Error('Track no longer exists'); return track;};
   switch(command.type) {
+    case 'project.color-grade': project.colorGrade = command.grade; break;
     case 'timeline.edit-ranges': project.clips = editTimelineRanges(project, {operation: command.operation, ranges: command.ranges, trackIds: command.trackIds}).clips.map(attach); break;
     case 'clip.add': project.clips.push(attach(command.clip)); break;
     case 'clips.replace': project.clips = command.clips.map(attach); break;
