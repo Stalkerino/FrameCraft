@@ -3,6 +3,7 @@ import {LockKeyhole} from 'lucide-react';
 import type {Project} from '../../../shared/project';
 import type {Corner, Rect} from '../../services/preview-geometry-service';
 import {useEditor} from '../../stores/editor-store';
+import {evaluatedVisualClip, visualPropertyPatch} from '../../services/visual-editing-service';
 export function PreviewSelection({project, bounds, begin}: {project: Project; bounds: {id: string; rect: Rect}[]; begin: (event: PointerEvent, id: string, corner?: Corner) => void}) {
   const selectedId = useEditor(s => s.selectedId); const busy = useEditor(s => s.busy);
   const selected = bounds.find(b => b.id === selectedId); const selectedClip = project.clips.find(c => c.id === selectedId); const name = selectedClip?.name;
@@ -11,7 +12,8 @@ export function PreviewSelection({project, bounds, begin}: {project: Project; bo
       if(!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
       event.preventDefault(); event.stopPropagation(); const clip = useEditor.getState().snapshot?.project.clips.find(c => c.id === id); if(!clip || clip.positionLocked) return;
       const step = event.shiftKey ? 10 : 1; const horizontal = event.key === 'ArrowLeft' || event.key === 'ArrowRight'; const sign = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
-      void useEditor.getState().updateClip(id, horizontal ? {x: Math.min(100, Math.max(0, clip.x + sign * step / project.width * 100))} : {y: Math.min(100, Math.max(0, clip.y + sign * step / project.height * 100))}, 'Nudged element on canvas');
+      const localFrame = Math.max(0, useEditor.getState().frame - clip.start); const current = evaluatedVisualClip(clip, localFrame);
+      void useEditor.getState().updateClip(id, visualPropertyPatch(clip, localFrame, horizontal ? {x: Math.min(100, Math.max(0, current.x + sign * step / project.width * 100))} : {y: Math.min(100, Math.max(0, current.y + sign * step / project.height * 100))}), 'Nudged element on canvas');
     }}/>) }
     {selected && <div className={`preview-selection__box ${selectedClip?.positionLocked ? 'preview-selection__box--locked' : ''}`} style={selected.rect}><span className="preview-selection__name">{selectedClip?.positionLocked && <LockKeyhole size={10}/>} {name}</span>{(['nw', 'ne', 'sw', 'se'] as const).map(corner => <button key={corner} className={`preview-selection__handle preview-selection__handle--${corner}`} aria-label={`Resize ${name} ${corner}`} disabled={busy} onPointerDown={event => begin(event, selected.id, corner)}/>)}</div>}
   </div>;

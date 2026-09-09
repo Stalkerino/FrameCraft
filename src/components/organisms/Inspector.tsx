@@ -1,4 +1,4 @@
-import {AlignCenter, AlignLeft, AlignRight, AudioLines, Boxes, Copy, Crosshair, Film, Image, LockKeyhole, SlidersHorizontal, Sparkles, Trash2, Type, Video} from 'lucide-react';
+import {AlignCenter, AlignLeft, AlignRight, AudioLines, Boxes, Copy, Crosshair, Film, Image, SlidersHorizontal, Sparkles, Trash2, Type, Video} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import {useEditor} from '../../stores/editor-store';
 import {openLibraryPanel, openInspectorPanel} from '../../services/workspace-navigation';
@@ -9,6 +9,10 @@ import {transitions} from '../../video/effects/registry';
 import {CodexPanel} from './CodexPanel';
 import {AudioProperties} from './AudioProperties';
 import {ClipColorGrading} from './ClipColorGrading';
+import {TransformProperties} from './TransformProperties';
+import {TransformKeyframes} from './TransformKeyframes';
+import {CropMaskProperties} from './CropMaskProperties';
+import {SpeedProperties} from './SpeedProperties';
 import {OverlayProperties} from '../molecules/OverlayProperties';
 import {PresetInstanceProperties} from '../molecules/PresetInstanceProperties';
 import {durationOf, formatTimecode, type Clip, type EffectName} from '../../../shared/project';
@@ -40,7 +44,7 @@ function ClipProperties({clip}: {clip: Clip}) {
   const patch = (value: Partial<Clip>, label?: string) => {void useEditor.getState().updateClip(clip.id, value, label);};
   const commitName = () => {const next = name.trim(); if(next && next !== clip.name) patch({name: next}, 'Renamed clip'); else setName(clip.name);};
   const asset = project?.assets.find(candidate => candidate.id === clip.assetId);
-  const sourceLength = asset && (clip.kind === 'video' || clip.kind === 'audio') ? Math.floor(asset.duration * fps) : undefined;
+  const sourceLength = asset && (clip.kind === 'video' || clip.kind === 'audio') ? Math.floor(asset.duration * fps + 1e-7) : undefined;
   const Icon = clip.kind === 'text' ? Type : clip.kind === 'audio' ? AudioLines : clip.kind === 'image' ? Image : clip.kind === 'graphic' || clip.kind === 'annotation' ? Boxes : Video;
   const transitionName = clip.presetTransition?.definition.name ?? transitions[clip.transition].name;
   return <>
@@ -58,12 +62,10 @@ function ClipProperties({clip}: {clip: Clip}) {
         {(clip.kind === 'video' || clip.kind === 'audio') && <NumberField label="Source in" value={clip.sourceStart / fps} max={sourceLength === undefined ? undefined : Math.max(0, sourceLength - clip.duration) / fps} step={1 / fps} suffix="s" onCommit={sourceStart => patch({sourceStart: Math.round(sourceStart * fps)})}/>}
         {project && <Field label="Timeline track"><select aria-label="Timeline track" value={clipTrackId(project, clip)} onChange={event => void useEditor.getState().execute([{type: 'clip.move-track', id: clip.id, trackId: event.target.value}], `Moved ${clip.name} to another track`)}>{projectTracks(project).filter(track => acceptsClip(track, clip)).map(track => <option key={track.id} value={track.id}>{track.name}</option>)}</select></Field>}
       </PropertySection>
-      {clip.track !== 'audio' && <PropertySection title="Transform" summary={clip.positionLocked ? 'Position locked' : `${Math.round(clip.scale * 100)}%`}>
-        <label className="position-lock"><LockKeyhole size={13}/><span>Lock position</span><input type="checkbox" role="switch" aria-label="Lock position" checked={clip.positionLocked} onChange={event => patch({positionLocked: event.target.checked}, event.target.checked ? 'Locked element position' : 'Unlocked element position')}/></label>
-        <div className="field-row"><NumberField disabled={clip.positionLocked} label="Position X" value={clip.x} max={100} step={0.5} suffix="%" onCommit={x => patch({x})}/><NumberField disabled={clip.positionLocked} label="Position Y" value={clip.y} max={100} step={0.5} suffix="%" onCommit={y => patch({y})}/></div><NumberField label="Scale" value={Math.round(clip.scale * 100)} min={10} max={400} suffix="%" onCommit={scale => patch({scale: scale / 100})}/>
-        <NumberField label="Opacity" value={Math.round((clip.opacity ?? 1) * 100)} max={100} suffix="%" onCommit={opacity => patch({opacity: opacity / 100}, 'Changed clip opacity')}/>
-        <p className="field-help">Drag the selected element in the preview to position it. Use its handles to resize.</p>
-      </PropertySection>}
+      {project && (clip.kind === 'video' || clip.kind === 'audio') && <PropertySection title="Speed & timing" defaultOpen={!!asset?.speedProcessing}><SpeedProperties clip={clip} project={project}/></PropertySection>}
+      {clip.track !== 'audio' && <TransformProperties clip={clip}/>}
+      {project && clip.track !== 'audio' && <TransformKeyframes clip={clip} project={project}/>}
+      {project && clip.track !== 'audio' && <CropMaskProperties clip={clip} project={project}/>}
       <OverlayProperties clip={clip} patch={patch}/>
       {(clip.kind === 'video' || clip.kind === 'image') && <ClipColorGrading clip={clip}/>}
       <PresetInstanceProperties clip={clip} patch={patch}/>

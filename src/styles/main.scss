@@ -11,6 +11,7 @@
 @use 'components/inspector';
 @use 'components/audio-properties';
 @use 'components/color-grading';
+@use 'components/visual-editing';
 @use 'components/agent';
 @use 'components/agent-model-settings';
 @use 'components/assist';
@@ -22,4 +23,5 @@
 @use 'components/projects';
 @use 'components/asset-studio';
 @use 'components/sound-library';
+@use 'components/speed-properties';
 @use 'pages/studio';

@@ -6,6 +6,7 @@ import {resolvePresetValues, scalarAt} from './asset-presets';
 import {zoomAtFrame} from './clip-animation';
 import {shiftAudioEnvelope, type AudioEnvelope} from './audio-envelope';
 import type {ColorGrade} from './color-grading';
+import {visualProperties} from './visual-editing';
 
 export interface VideoSegment {start: number; duration: number; sourceStart: number; volume: number; audioEnvelope?: AudioEnvelope | null; colorGrade?: ColorGrade | null; projectColorGrade?: ColorGrade | null; opacity?: number; backgroundColor?: string; asset: Asset}
 export interface OverlayRun {frame: number; duration: number}
@@ -30,7 +31,7 @@ export function layeredRenderPlan(project: Project, settings: ExportSettings): L
   let cursor = firstFrame;
   for(const clip of trackClips(project, base.id).filter(intersects)) {
     const asset = project.assets.find(asset => asset.id === clip.assetId);
-    if(clip.kind !== 'video' || !asset || !asset.width || !asset.height || clip.x !== 50 || clip.y !== 50 || clip.scale !== 1 || clip.zoom || clip.transition !== 'none' || clip.presetTransition) return null;
+    if(clip.kind !== 'video' || !asset || !asset.width || !asset.height || clip.x !== 50 || clip.y !== 50 || clip.scale !== 1 || clip.zoom || clip.transition !== 'none' || clip.presetTransition || clip.rotation || clip.crop || clip.mask || visualProperties.some(property => clip.keyframes?.[property]?.length)) return null;
     if(Math.abs(asset.width / asset.height - project.width / project.height) > 1e-6) return null;
     const start = Math.max(firstFrame, clip.start); const end = Math.min(lastFrame + 1, clip.start + clip.duration);
     if(start !== cursor) return null;
@@ -62,6 +63,7 @@ export function layeredRenderPlan(project: Project, settings: ExportSettings): L
 }
 
 function overlaySignature(clip: Clip, fps: number): (frame: number) => unknown {
+  if(visualProperties.some(property => clip.keyframes?.[property]?.length)) return frame => frame;
   if(clip.kind === 'graphic' && clip.graphic) {
     const {definition, values: input, duration} = clip.graphic;
     const values = resolvePresetValues(definition, input);

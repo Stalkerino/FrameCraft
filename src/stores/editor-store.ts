@@ -119,7 +119,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const track = asset.kind === 'audio' ? 'audio' : 'visual';
     const destination = trackId ?? projectTracks(project).find(t => t.id === get().selectedTrackId && t.type === track)?.id ?? projectTracks(project).find(t => t.type === track)?.id;
     const start = frame ?? Math.max(0, ...project.clips.filter(c => clipTrackId(project, c) === destination).map(c => c.start + c.duration));
-    const clip = clipSchema.parse({id: createId(), name: asset.name.replace(/\.[^.]+$/, ''), kind: asset.kind, assetId: asset.id, track, trackId: destination, start, transitionFrames: Math.max(1, Math.round(.6 * project.fps)), duration: Math.max(1, Math.floor(asset.duration * project.fps))});
+    const clip = clipSchema.parse({id: createId(), name: asset.name.replace(/\.[^.]+$/, ''), kind: asset.kind, assetId: asset.id, track, trackId: destination, start, transitionFrames: Math.max(1, Math.round(.6 * project.fps)), duration: Math.max(1, Math.floor(asset.duration * project.fps + 1e-7))});
     void get().execute([{type: 'clip.add', clip}], `Added ${clip.name}`).then(ok => {if(ok) {set({selectedId: clip.id}); get().seekTo(start);}});
   },
   addText: (preset = 'title') => {

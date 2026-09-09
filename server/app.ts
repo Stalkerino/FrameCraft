@@ -37,6 +37,8 @@ import {SoundLibraryService} from './services/sound-library-service';
 import {soundRoutes} from './routes/sound-routes';
 import {ColorGradingService} from './services/color-grading-service';
 import {colorGradingRoutes} from './routes/color-grading-routes';
+import {SpeedRampService} from './services/speed-ramp-service';
+import {speedRampRoutes} from './routes/speed-ramp-routes';
 
 export async function createApp() {
   const app = express();
@@ -53,6 +55,7 @@ export async function createApp() {
   const timeline = new TimelineService(repository);
   const grading = new ColorGradingService(repository);
   const audioEffects = new AudioEffectsService(repository, media, mediaFiles, path.join(dataDir, 'audio-cache'));
+  const speedRamps = new SpeedRampService(repository, media, mediaFiles, path.join(dataDir, 'speed-cache'), encoders);
   const audioMix = new AudioMixService(repository);
   const sounds = new SoundLibraryService(libraryDir, media, repository); await sounds.init();
   const agents = new AgentConnectionService();
@@ -86,6 +89,7 @@ export async function createApp() {
   app.use('/api/color-grading', colorGradingRoutes(grading));
   app.use('/api/audio', audioMixRoutes(audioMix));
   app.use('/api/audio-effects', audioEffectsRoutes(audioEffects));
+  app.use('/api/speed', speedRampRoutes(speedRamps));
   app.use('/api/sounds', soundRoutes(sounds));
   app.use('/api/projects', projectRoutes(repository, () => ['working', 'starting'].includes(codex.snapshot().status)));
   app.use('/api/media', mediaPreviewRoutes(previews, repository));
@@ -162,5 +166,5 @@ export async function createApp() {
     if(res.headersSent) {next(error); return;}
     console.error(error.message); res.status(error.status || 400).json({error: error.message});
   });
-  return {app, repository, renders, codex, analysis, presets, previews, audioEffects, sounds};
+  return {app, repository, renders, codex, analysis, presets, previews, audioEffects, speedRamps, sounds};
 }

@@ -78,7 +78,7 @@ A range boundary inside an active incoming transition is rejected, because split
 
 ## Current boundaries
 
-These are basic SDR image adjustments rather than a calibrated color-management pipeline. There is no LUT import, scopes, color wheels, selective masks, animated grading curves, automatic shot matching or dedicated HDR/log conversion. Preview still depends on the browser's decoding, display and chosen playback source; use full-quality playback when judging detail.
+These are basic SDR image adjustments rather than a calibrated color-management pipeline. There is no LUT import, scopes, color wheels, selective grading masks, animated grading curves, automatic shot matching or dedicated HDR/log conversion. Preview still depends on the browser's decoding, display and chosen playback source; use full-quality playback when judging detail.
 
 Browser preview and full-compositor export use shared sRGB matrix/gamma stages. The optimized native export uses cached 33³ matrix lookup tables with tetrahedral interpolation, followed by separate per-channel gamma tables to preserve shadow detail. Opacity blends the graded pixels against the project background before artwork is added. Small interpolation and pixel-format differences mean the native path is not bit-identical to Chromium's output; neutral grading and full opacity bypass this processing.
 

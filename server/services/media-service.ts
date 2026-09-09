@@ -29,7 +29,7 @@ export class MediaService {
       const kind = images.has(ext) ? 'image' : audio.has(ext) ? 'audio' : 'video';
       if(kind === 'audio' ? !sound : !visual) throw new Error('File does not contain the expected media');
       const duration = kind === 'image' ? 6 : Number(probe.format.duration || visual?.duration || sound?.duration);
-      if(!Number.isFinite(duration) || duration < 1 / 30) throw new Error('Could not determine media duration');
+      if(!Number.isFinite(duration) || duration <= 0) throw new Error('Could not determine media duration');
       const asset: Asset = {id, name: path.basename(originalName), kind, src: url, duration, width: visual?.width, height: visual?.height, videoCodec: kind === 'video' ? visual.codec_name : undefined};
       if(kind === 'video') {
         for(const rate of [visual?.avg_frame_rate, visual?.r_frame_rate]) {

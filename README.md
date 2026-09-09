@@ -17,6 +17,8 @@ Framecraft is a local video editor for devlogs, gameplay breakdowns, tutorials, 
 | Drag and resize elements directly in the preview | Review gameplay with no narration and propose an edit |
 | Titles, annotations, focus zooms, and transitions | Generate editable animations and save them for reuse |
 | Clip and project color adjustments | Grade selected clips, tracks or timeline sections through MCP |
+| Crop, masks, opacity and transform keyframes | Animate placement with easing or custom Bézier curves |
+| Constant speed, ramps and freeze holds | Retime the same source through MCP or Ctrl-drag its right edge |
 | Saved sound effects with real audio preview | Generate whooshes, impacts and interface cues locally, then let Codex place them |
 | Resizable Edit, Review, and AI edit layouts | Transcribe speech, cut by words, and generate captions |
 | Named projects, autosave, and shared preset library | Type or dictate into the existing Codex conversation |
@@ -123,7 +125,7 @@ On Windows, use a path such as `C:\Projects\Framecraft\scripts\mcp.mjs`. Registr
 
 ## Current scope
 
-Framecraft is an early local editor. It has no general-purpose crop/mask editor, arbitrary video keyframe curves, speed ramps, motion tracking, or desktop installer. Basic [color grading](docs/color-grading.md) supports exposure, contrast, saturation, temperature, tint, gamma and hue; advanced LUT/scopes/HDR workflows are not available. Graphic recipes support their own parameterized keyframes. Comparison presets decorate/reveal clips; they do not automatically synchronize recordings or create a complete timeline layout.
+Framecraft is an early local editor. [Crop, masks and transform keyframes](docs/advanced-editing.md) support manual composition and animation; [speed ramps](docs/speed-ramping.md) create reusable retimed media with progress and cancellation. Motion tracking and desktop installers are not included. Basic [color grading](docs/color-grading.md) supports exposure, contrast, saturation, temperature, tint, gamma and hue; advanced LUT/scopes/HDR workflows are not available. Comparison presets decorate/reveal clips; they do not automatically synchronize recordings or create a complete timeline layout.
 
 Codex can remove or assemble timeline ranges across all tracks or an explicit subset, with a preview and one undo step. Persistent linked-clip groups are not available. Audio supports fades, gain automation, clip-range ducking, and rendered EQ/compression/room-reverb copies; this is not a live plugin or sidechain rack. See [audio editing](docs/audio-editing.md), [whole-sequence editing](docs/timeline-editing.md), and [multi-track capabilities](docs/feature-overview.md#editing-an-existing-multi-track-timeline).
 

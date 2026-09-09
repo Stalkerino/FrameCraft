@@ -6,7 +6,7 @@ import {IconButton} from '../atoms/Button';
 import {Dialog} from '../atoms/Dialog';
 
 const presets = [{id: 'edit', label: 'Edit', icon: Clapperboard}, {id: 'review', label: 'Review', icon: MonitorPlay}, {id: 'ai', label: 'AI edit', icon: Sparkles}] as const;
-const shortcuts = [['Playback', [['Space', 'Play / pause'], ['← / →', 'Previous / next frame'], ['Shift + ← / →', 'Seek one second']]], ['Timeline', [['V', 'Select and move'], ['C', 'Razor tool'], ['S', 'Split at playhead'], ['N', 'Toggle snapping'], ['Ctrl / ⌘ + C', 'Copy selected clip'], ['Ctrl / ⌘ + V', 'Paste at playhead'], ['Ctrl / ⌘ + D', 'Duplicate after clip'], ['Delete', 'Remove selected clip'], ['Alt + drag', 'Temporarily ignore snapping']]], ['History', [['Ctrl / ⌘ + Z', 'Undo'], ['Ctrl + Y / Ctrl + Shift + Z', 'Redo']]]] as const;
+const shortcuts = [['Playback', [['Space', 'Play / pause'], ['← / →', 'Previous / next frame'], ['Shift + ← / →', 'Seek one second']]], ['Timeline', [['V', 'Select and move'], ['C', 'Razor tool'], ['S', 'Split at playhead'], ['N', 'Toggle snapping'], ['Ctrl / ⌘ + C', 'Copy selected clip'], ['Ctrl / ⌘ + V', 'Paste at playhead'], ['Ctrl / ⌘ + D', 'Duplicate after clip'], ['Delete', 'Remove selected clip'], ['Alt + drag', 'Temporarily ignore snapping'], ['Ctrl + right-edge drag', 'Change video speed and duration']]], ['History', [['Ctrl / ⌘ + Z', 'Undo'], ['Ctrl + Y / Ctrl + Shift + Z', 'Redo']]]] as const;
 
 export function WorkspaceToolbar() {
   const workspace = useWorkspace(); const [help, setHelp] = useState(false);

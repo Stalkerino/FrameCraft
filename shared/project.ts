@@ -7,6 +7,8 @@ import {acceptsClip, clipTrackId, projectTracks, trackSchema, trackTypeName} fro
 import {editTimelineRanges, timelineRangeEditSchema} from './timeline-ranges';
 import {audioProcessingSchema} from './audio-effects';
 import {colorGradeSchema} from './color-grading';
+import {cropSchema, maskSchema, reframeVisualKeyframes, visualKeyframesSchema} from './visual-editing';
+import {speedProcessingSchema} from './speed-ramping';
 
 export const effectNames = ['none', 'fade', 'slide', 'diagonal', 'pixel'] as const;
 export const assetSchema = z.object({
@@ -17,6 +19,7 @@ export const assetSchema = z.object({
   videoCodec: z.string().optional(),
   fps: z.number().positive().optional(),
   audioProcessing: audioProcessingSchema.optional(),
+  speedProcessing: speedProcessingSchema.optional(),
 });
 export const clipSchema = z.object({
   id: z.string().min(1), name: z.string().min(1).max(240),
@@ -30,9 +33,12 @@ export const clipSchema = z.object({
   x: z.number().min(0).max(100).default(50), y: z.number().min(0).max(100).default(50),
   scale: z.number().min(0.1).max(4).default(1),
   opacity: z.number().min(0).max(1).default(1),
+  rotation: z.number().finite().min(-36000).max(36000).default(0),
+  crop: cropSchema.nullable().optional(), mask: maskSchema.nullable().optional(),
+  keyframes: visualKeyframesSchema.nullable().optional(),
   positionLocked: z.boolean().default(false).describe('Preserve x/y while locked. Only explicitly unlock when the user requests it.'),
   colorGrade: colorGradeSchema.nullable().optional(),
-  motionOffset: z.number().int().nonnegative().optional(),
+  motionOffset: z.number().int().safe().optional(),
   text: z.string().max(2000).default(''), fontSize: z.number().min(4).max(2000).default(88),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#ffffff'),
   align: z.enum(['left', 'center', 'right']).default('center'),
@@ -101,6 +107,7 @@ export function validateProject(project: Project): Project {
     if(clip.caption && clip.kind !== 'text') throw new Error('Captions require a text clip');
     if(clip.audioEnvelope && clip.kind !== 'video' && clip.kind !== 'audio') throw new Error('Audio envelopes require a video or audio clip');
     if(clip.colorGrade && clip.kind !== 'video' && clip.kind !== 'image') throw new Error('Color grading requires a video or image clip');
+    if(clip.kind === 'audio' && (clip.crop || clip.mask || clip.keyframes || clip.rotation)) throw new Error('Crop, masks and transform keyframes require a visual element');
     if(clip.zoom && clip.track !== 'visual') throw new Error('Zoom requires a visual clip');
     if(clip.presetTransition && (clip.track !== 'visual' || clip.presetTransition.definition.category !== 'transition')) throw new Error('A transition preset requires a visual clip');
     if(clip.graphic && clip.kind !== 'graphic') throw new Error('Graphic recipes require a graphic clip');
@@ -117,7 +124,7 @@ export function validateProject(project: Project): Project {
     const asset = project.assets.find(a => a.id === clip.assetId);
     if(!asset || asset.kind !== clip.kind) throw new Error('Clip needs a matching imported asset');
     if(clip.track !== (clip.kind === 'audio' ? 'audio' : 'visual')) throw new Error('Invalid track for this media');
-    if(clip.kind !== 'image' && clip.sourceStart + clip.duration > Math.floor(asset.duration * project.fps)) throw new Error('Trim exceeds the source duration');
+    if(clip.kind !== 'image' && clip.sourceStart + clip.duration > Math.floor(asset.duration * project.fps + 1e-7)) throw new Error('Trim exceeds the source duration');
   }
   return project;
 }
@@ -143,6 +150,7 @@ export function applyCommand(current: Project, input: Command): Project {
     case 'clip.update': {
       const clip = find(command.id);
       if(clip.audioEnvelope && command.patch.audioEnvelope === undefined && command.patch.sourceStart !== undefined && (clip.kind === 'video' || clip.kind === 'audio')) clip.audioEnvelope = shiftAudioEnvelope(clip.audioEnvelope, command.patch.sourceStart - clip.sourceStart);
+      if(command.patch.motionOffset === undefined && command.patch.sourceStart !== undefined && clip.kind === 'video') clip.motionOffset = (clip.motionOffset ?? 0) + command.patch.sourceStart - clip.sourceStart;
       Object.assign(clip, command.patch); break;
     }
     case 'clip.remove': find(command.id); project.clips = project.clips.filter(c => c.id !== command.id); break;
@@ -164,9 +172,16 @@ export function applyCommand(current: Project, input: Command): Project {
     case 'track.remove': {findTrack(command.id); if(project.clips.some(c => clipTrackId(project, c) === command.id)) throw new Error('Move or remove the clips on this track first'); project.tracks = editableTracks().filter(t => t.id !== command.id); break;}
     case 'track.clear': {findTrack(command.id); project.clips = project.clips.filter(c => clipTrackId(project, c) !== command.id); break;}
   }
+  const positionCurve = (clip: Clip, property: 'x' | 'y') => JSON.stringify((clip.keyframes?.[property] ?? []).map(({frame: _frame, ...key}) => key));
   for(const clip of current.clips.filter(c => c.positionLocked)) {
     const next = project.clips.find(c => c.id === clip.id);
-    if(next?.positionLocked && (next.x !== clip.x || next.y !== clip.y)) throw new Error(`Position is locked for ${clip.name}. Unlock it before moving it.`);
+    if(!next?.positionLocked) continue;
+    // Retiming can quantize neighboring keys onto the same frame. Permit exactly
+    // that timing conversion while retaining protection against new positions.
+    const retimed = clip.duration !== next.duration && clip.keyframes ? reframeVisualKeyframes(clip.keyframes, next.duration / clip.duration) : null;
+    const changedCurve = (property: 'x' | 'y') => positionCurve(next, property) !== positionCurve(clip, property)
+      && (!retimed || JSON.stringify(next.keyframes?.[property] ?? []) !== JSON.stringify(retimed[property] ?? []));
+    if(next.x !== clip.x || next.y !== clip.y || command.type !== 'project.settings' && (changedCurve('x') || changedCurve('y'))) throw new Error(`Position is locked for ${clip.name}. Unlock it before moving it.`);
   }
   project.revision = current.revision + 1;
   return validateProject(project);

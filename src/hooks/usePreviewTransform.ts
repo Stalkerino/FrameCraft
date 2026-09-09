@@ -1,10 +1,11 @@
 import {useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type RefObject} from 'react';
-import type {Project} from '../../shared/project';
+import type {Clip, Project} from '../../shared/project';
 import {measurePreview, moveOnCanvas, resizeOnCanvas, type Corner, type Rect, type TransformPatch} from '../services/preview-geometry-service';
 import {useEditor} from '../stores/editor-store';
+import {evaluatedVisualClip, visualPropertyPatch} from '../services/visual-editing-service';
 
 export function usePreviewTransform(canvas: RefObject<HTMLDivElement | null>, project: Project | undefined, frame: number, enabled: boolean) {
-  const [draft, setDraft] = useState<{id: string; patch: TransformPatch} | null>(null);
+  const [draft, setDraft] = useState<{id: string; patch: Partial<Clip>} | null>(null);
   const [bounds, setBounds] = useState<{id: string; rect: Rect}[]>([]);
   const current = useRef({project, frame}); current.current = {project, frame};
   const cancelRef = useRef<(() => void) | null>(null); const gesture = useRef(0);
@@ -25,6 +26,8 @@ export function usePreviewTransform(canvas: RefObject<HTMLDivElement | null>, pr
   const begin = (event: PointerEvent, id: string, corner?: Corner) => {
     if(event.button !== 0 || !enabled || useEditor.getState().busy || !project || !canvas.current) return;
     const clip = project.clips.find(c => c.id === id); const box = bounds.find(b => b.id === id)?.rect; if(!clip || !box) return;
+    const localFrame = Math.max(0, frame - clip.start);
+    const evaluated = evaluatedVisualClip(clip, localFrame);
     event.preventDefault(); event.stopPropagation(); cancelRef.current?.();
     useEditor.setState({selectedId: id, inspectorTab: 'properties', playing: false});
     if(clip.positionLocked && !corner) return;
@@ -33,17 +36,17 @@ export function usePreviewTransform(canvas: RefObject<HTMLDivElement | null>, pr
     const move = (e: globalThis.PointerEvent) => {
       if(e.pointerId !== pointer) return;
       if(!latest && Math.hypot(e.clientX - x, e.clientY - y) < 4) return;
-      latest = corner ? resizeOnCanvas(clip, box, canvasRect, corner, e.clientX - x, e.clientY - y) : moveOnCanvas(clip, e.clientX - x, e.clientY - y, canvasRect);
-      if(clip.positionLocked) latest = {...latest, x: clip.x, y: clip.y};
-      setDraft({id, patch: latest});
+      latest = corner ? resizeOnCanvas(evaluated, box, canvasRect, corner, e.clientX - x, e.clientY - y) : moveOnCanvas(evaluated, e.clientX - x, e.clientY - y, canvasRect);
+      if(clip.positionLocked) latest = {...latest, x: evaluated.x, y: evaluated.y};
+      setDraft({id, patch: visualPropertyPatch(clip, localFrame, latest)});
     };
     const cleanup = () => {window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', cancel); window.removeEventListener('blur', cancel); window.removeEventListener('resize', cancel); window.removeEventListener('keydown', escape); cancelRef.current = null;};
     const cancel = () => {cleanup(); gesture.current++; setDraft(null);};
     const escape = (e: KeyboardEvent) => {if(e.key === 'Escape') {e.preventDefault(); cancel();}};
     const end = (e: globalThis.PointerEvent) => {
       if(e.pointerId !== pointer) return; cleanup();
-      if(latest && (latest.x !== clip.x || latest.y !== clip.y || latest.scale !== clip.scale)) {
-        void useEditor.getState().execute([{type: 'clip.update', id, patch: latest}], `${corner ? 'Resized' : 'Moved'} ${clip.name} on canvas`, revision).finally(() => {if(gesture.current === token) setDraft(null);});
+      if(latest && (latest.x !== evaluated.x || latest.y !== evaluated.y || latest.scale !== evaluated.scale)) {
+        void useEditor.getState().execute([{type: 'clip.update', id, patch: visualPropertyPatch(clip, localFrame, latest)}], `${corner ? 'Resized' : 'Moved'} ${clip.name} on canvas`, revision).finally(() => {if(gesture.current === token) setDraft(null);});
       } else setDraft(null);
     };
     cancelRef.current = cancel;

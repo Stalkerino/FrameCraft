@@ -100,6 +100,7 @@ Supported imports: MP4, MOV, MKV, WebM, AVI, M4V; PNG, JPG, WebP; MP3, WAV, M4A,
 | V | Selection tool: move clips or trim their edges |
 | N | Toggle snapping |
 | Ctrl + C / V / D | Copy / paste at playhead / duplicate selected clip |
+| Ctrl + drag video right edge | Change duration by retiming the same source interval |
 | Delete / Backspace | Remove selected clip |
 | Ctrl + Z | Undo |
 | Ctrl + Shift + Z / Ctrl + Y | Redo |
