@@ -27,7 +27,7 @@ export function RoughCutPanel() {
     <Field label="What is this devlog about?"><textarea aria-label="First cut topic" placeholder="Optional · the new combat system" rows={2} value={topic} maxLength={500} onChange={e => setTopic(e.target.value)}/></Field>
     <Field label="Target duration (seconds)"><input aria-label="First cut duration" type="number" min={5} max={3600} value={seconds} onChange={e => setSeconds(Number(e.target.value))}/></Field>
     <Button icon={<Clapperboard size={15}/>} disabled={busy || active || !assetIds.length || seconds < 5 || seconds > 3600} onClick={() => void run(async () => {const next = await analysisApi.roughcut(assetIds.filter(id => project.assets.some(a => a.id === id)), seconds, topic); useAnalysis.getState().add(next); useAnalysis.setState({roughcutId: next.id});})}>Propose a first cut</Button>
-    <p className="field-help">Selects spoken passages, then keeps their source order. A topic ranks passages by meaning. Without a transcript, the opening seconds are used. For footage without speech, use Gameplay for visual review with Codex.</p>
+    <p className="field-help">Selects spoken passages, then keeps their source order. A topic ranks passages by meaning. Without a transcript, the opening seconds are used. For footage without speech, use Automatic Cuts for visual review with Codex.</p>
     <AnalysisProgress job={job}/>
     {proposal && <>
       {previewAsset && preview && <SourcePreview asset={previewAsset} start={preview.sourceStart / fps} end={(preview.sourceStart + preview.duration) / fps}/>}

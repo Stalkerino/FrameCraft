@@ -18,7 +18,7 @@ export class VideoFrameService {
         for(let i = 0; i < size; i++) {sum += frame[i]; if(previous) difference += Math.abs(frame[i] - previous[i]);}
         const time = samples.length * interval;
         if(time < asset.duration) samples.push({time, motion: difference / (size * 255), brightness: sum / (size * 255)});
-        previous = frame; progress(Math.min(.7, time / asset.duration * .7), `Scanning gameplay · ${Math.min(100, Math.floor(time / asset.duration * 100))}%`);
+        previous = frame; progress(Math.min(.7, time / asset.duration * .7), `Scanning video · ${Math.min(100, Math.floor(time / asset.duration * 100))}%`);
       }
     }});
     return {samples, interval};

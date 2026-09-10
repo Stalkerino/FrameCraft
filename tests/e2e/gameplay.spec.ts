@@ -16,7 +16,7 @@ test('visually inspects silent gameplay, saves a reviewable cut through MCP and 
   const call = async (name: string, args: Record<string, unknown>) => {const result = await client.callTool({name, arguments: args}, undefined, {timeout: 120000}); expect(result.isError, JSON.stringify(result)).not.toBe(true); return result;};
   const data = (result: unknown) => JSON.parse((result as {content: {text: string}[]}).content[0].text);
   try {
-    await page.goto('/'); await page.getByRole('button', {name: 'Tools', exact: true}).click(); await page.getByRole('button', {name: 'Gameplay cuts', exact: true}).click(); await page.getByRole('button', {name: 'Scan gameplay', exact: true}).click();
+    await page.goto('/'); await page.getByRole('button', {name: 'Tools', exact: true}).click(); await page.getByRole('button', {name: 'Automatic Cuts', exact: true}).click(); await page.getByRole('button', {name: 'Scan video', exact: true}).click();
     await expect(page.getByText('Visual map ready', {exact: true})).toBeVisible({timeout: 60000}); const catalog = data(await call('get_video_analysis', {})); const report = catalog.reports[0];
     expect(report.assetId).toBe(asset.id); expect(report.cues.some((cue: {kind: string}) => cue.kind === 'dark')).toBe(true); expect((await snapshot()).project.clips).toHaveLength(0);
     const overview = await call('inspect_video', {inspection: {reportId: report.id, page: 0}}); expect((overview.content as {type: string}[]).some(item => item.type === 'image')).toBe(true);
@@ -29,13 +29,13 @@ test('visually inspects silent gameplay, saves a reviewable cut through MCP and 
     const uninspected = await request.post('/api/visual-rush/cuts', {data: {...proposalInput, shots: [{...proposalInput.shots[0], evidence: [5.123]}]}}); expect(uninspected.ok()).toBe(false);
     const proposal = data(await call('save_video_cut', proposalInput)); await expect(page.getByText('Observed motion section', {exact: true})).toBeVisible();
     expect(proposal.shots[0].evidence).toEqual(evidence);
-    await page.getByRole('button', {name: 'Preview gameplay shot 1'}).click(); await expect(page.locator('.source-preview video')).toBeVisible(); await page.getByRole('button', {name: 'Apply gameplay cut', exact: true}).click();
+    await page.getByRole('button', {name: 'Preview shot 1'}).click(); await expect(page.locator('.source-preview video')).toBeVisible(); await page.getByRole('button', {name: 'Apply cut', exact: true}).click();
     await expect.poll(async () => (await snapshot()).project.clips.map((clip: {sourceStart: number; duration: number}) => [clip.sourceStart, clip.duration])).toEqual([[96, 96]]);
     await page.screenshot({path: 'test-results/gameplay/review.png'}); await page.getByRole('button', {name: 'Undo timeline edit (Ctrl+Z)', exact: true}).click(); await expect.poll(async () => (await snapshot()).project.clips.length).toBe(0);
     await call('apply_video_cut', {id: proposal.id, version: proposal.version, revision: (await snapshot()).project.revision, mode: 'append'});
     const frame = await call('render_frame', {frame: 24}); expect((frame.content as {type: string}[]).some(item => item.type === 'image')).toBe(true);
-    await page.reload(); await page.getByRole('button', {name: 'Tools', exact: true}).click(); await page.getByRole('button', {name: 'Gameplay cuts', exact: true}).click(); await expect(page.getByText('Observed motion section', {exact: true})).toBeVisible();
-    await page.getByRole('textbox', {name: 'Gameplay editing goal'}).fill('Show movement mechanics'); await page.getByRole('button', {name: 'Review in Codex', exact: true}).click(); await expect(page.getByRole('textbox', {name: 'Message Codex'})).toHaveValue(/Show movement mechanics/);
+    await page.reload(); await page.getByRole('button', {name: 'Tools', exact: true}).click(); await page.getByRole('button', {name: 'Automatic Cuts', exact: true}).click(); await expect(page.getByText('Observed motion section', {exact: true})).toBeVisible();
+    await page.getByRole('textbox', {name: 'Automatic Cuts editing goal'}).fill('Show movement mechanics'); await page.getByRole('button', {name: 'Review in Codex', exact: true}).click(); await expect(page.getByRole('textbox', {name: 'Message Codex'})).toHaveValue(/Show movement mechanics/);
     // The protocol peer verifies one-click sending; semantic quality is not simulated or claimed here.
     const draft = await page.getByRole('textbox', {name: 'Message Codex'}).inputValue();
     const sent = page.waitForRequest(request => request.url().endsWith('/api/agent/chat/message') && request.method() === 'POST');

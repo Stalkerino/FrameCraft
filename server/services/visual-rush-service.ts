@@ -14,7 +14,7 @@ export class VisualRushService {
   private queue: Promise<unknown> = Promise.resolve();
   private inspected = new Map<string, Set<number>>();
   constructor(options: {data: string; media: string}) {this.repository = new VisualRushRepository(path.join(options.data, 'visual-rush')); this.frames = new VideoFrameService(options.media);}
-  private source(project: Project, assetId: string) {const asset = project.assets.find(a => a.id === assetId && a.kind === 'video'); if(!asset) throw new Error('Choose an imported gameplay video'); return asset;}
+  private source(project: Project, assetId: string) {const asset = project.assets.find(a => a.id === assetId && a.kind === 'video'); if(!asset) throw new Error('Choose an imported video'); return asset;}
   private async viewed(report: VisualReport) {
     let viewed = this.inspected.get(report.id); if(viewed) return viewed;
     viewed = new Set<number>();

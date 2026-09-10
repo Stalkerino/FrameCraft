@@ -14,7 +14,7 @@ export function visualRushRoutes(analysis: AnalysisService, repository: ProjectR
   router.post('/apply', async (req, res) => {
     const input = applyVideoCutSchema.parse(req.body); const project = repository.snapshot().project; const proposal = await service.repository.cut(input.id);
     const commands = visualCutCommands(project, proposal, input, randomUUID);
-    res.json(await repository.execute(commands, input.revision, req.headers['x-framecraft-client'] === 'codex' ? 'codex' : 'editor', `Applied gameplay cut: ${proposal.title}`));
+    res.json(await repository.execute(commands, input.revision, req.headers['x-framecraft-client'] === 'codex' ? 'codex' : 'editor', `Applied automatic cut: ${proposal.title}`));
   });
   return router;
 }

@@ -81,7 +81,7 @@ Example prompts:
 
 ## What stays separate
 
-- **Gameplay analysis:** `analyze_video` and `inspect_video` inspect individual source assets. Codex can combine those observations with `render_frame` and the timeline structure to plan a sequence, but range editing is not a whole-timeline semantic analysis engine.
+- **Visual analysis / Automatic Cuts:** `analyze_video` and `inspect_video` inspect individual source assets. Codex can combine those observations with `render_frame` and the timeline structure to plan a sequence, but range editing is not a whole-timeline semantic analysis engine.
 - **Single-track proposals:** `apply_video_cut` applies selected source shots to one video track; other tracks keep their existing times. Use range editing when coordinated changes to existing tracks are required.
 - **Persistent clip groups:** tracks are selected per operation. The editor does not create permanent links that force later independent clip moves to follow each other.
 - **Audio effects:** audio clips and their existing gain envelopes participate in coordinated cuts and moves. Fades, automation, clip-span ducking, and rendered EQ/compression/reverb are available as separate [audio editing tools](audio-editing.md); range editing does not analyze loudness or generate those effects automatically.

@@ -16,7 +16,7 @@ export class AnalysisService {
   readonly visual: VisualRushService;
   constructor(readonly transcripts: TranscriptRepository, private inference: InferenceProvider, private options: {data: string; media: string; cache: string}) {this.visual = new VisualRushService(options);}
   analyzeVideo(project: Project, assetId: string, refresh: boolean) {
-    if(!project.assets.some(a => a.id === assetId && a.kind === 'video')) throw new Error('Choose a gameplay video');
+    if(!project.assets.some(a => a.id === assetId && a.kind === 'video')) throw new Error('Choose a video');
     return this.enqueue('visual-scan', async (job, signal, progress) => {job.reportId = (await this.visual.scan(project, assetId, refresh, signal, progress)).id;}, assetId);
   }
   private enqueue(kind: AnalysisJob['kind'], task: (job: AnalysisJob, signal: AbortSignal, progress: Progress) => Promise<void>, assetId?: string) {

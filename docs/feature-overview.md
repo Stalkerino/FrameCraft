@@ -40,7 +40,7 @@ Example prompt:
 
 ### Analysis and proposals
 
-- **Gameplay without narration:** local visual-change, brightness and low-motion scanning; source-frame grids and detailed sequence/single-frame inspection through MCP. The existing Codex chat interprets the actual imagery and saves proposals with source timestamps, reasons, confidence and inspected evidence references. Preview, select/reorder and apply shots to a video track in one undo step. Cached maps and project-specific proposals persist. This is sampled visual review and can miss brief events; local signals alone do not identify meaningful gameplay. See [Gameplay cuts](gameplay-cuts.md).
+- **Automatic Cuts for visual footage:** local visual-change, brightness and low-motion scanning; source-frame grids and detailed sequence/single-frame inspection through MCP. The existing Codex chat interprets the actual imagery and saves proposals with source timestamps, reasons, confidence and inspected evidence references. Preview, select/reorder and apply shots to a video track in one undo step. Cached maps and project-specific proposals persist. This is sampled visual review and can miss brief events; local signals alone do not identify meaningful gameplay. See [Automatic Cuts](gameplay-cuts.md).
 
 - **Speech transcription:** local Whisper recognition with word timestamps; automatic language detection and explicit French/English choices. Correct individual words before editing or generating captions.
 - **Transcript cuts:** select words, review the affected time ranges, then remove them. The cut ripples across every track in one undoable transaction.
