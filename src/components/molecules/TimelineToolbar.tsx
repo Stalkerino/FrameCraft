@@ -29,7 +29,7 @@ export function TimelineToolbar({project, onFit}: {project?: Project; onFit: () 
           <IconButton label="Copy selected clip (Ctrl+C)" disabled={!selected} onClick={() => useEditor.getState().copyClip()}><Copy size={15}/></IconButton>
           <IconButton label="Paste clip at playhead (Ctrl+V)" disabled={!clipboard || clipboard.projectId !== project?.id || busy} onClick={() => void useEditor.getState().pasteClip()}><ClipboardPaste size={15}/></IconButton>
           <IconButton label="Duplicate selected clip (Ctrl+D)" title="Duplicate after the selected clip (Ctrl+D)" disabled={!selected || busy} onClick={() => void useEditor.getState().duplicateClip()}><CopyPlus size={15}/></IconButton>
-          <IconButton label="Delete selected clip" disabled={!selected || busy} onClick={() => selected && void useEditor.getState().execute([{type: 'clip.remove', id: selected.id}], `Removed ${selected.name}`.slice(0, 180))}><Trash2 size={15}/></IconButton>
+          <IconButton label="Delete selected clip" disabled={!selected || busy} onClick={() => selected && void useEditor.getState().removeSelected()}><Trash2 size={15}/></IconButton>
         </div>
         <div className="timeline-tool-group" role="group" aria-label="Edit history">
           <IconButton label="Undo timeline edit (Ctrl+Z)" disabled={!snapshot?.canUndo || busy} onClick={() => void useEditor.getState().history('undo')}><Undo2 size={16}/></IconButton>

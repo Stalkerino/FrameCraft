@@ -1,3 +1,5 @@
+import {useTimelineGroupDrag} from '../../hooks/useTimelineGroupDrag';
+import {timelineSelection} from '../../services/timeline-selection';
 import {GripVertical, Music2, Type} from 'lucide-react';
 import {memo, useEffect, useRef, useState, type PointerEvent} from 'react';
 import type {Asset, Clip, Command} from '../../../shared/project';
@@ -13,7 +15,7 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
   const fps = useEditor(s => s.snapshot?.project.fps ?? 30);
   const projectId = useEditor(s => s.snapshot?.project.id ?? '');
   const revision = useEditor(s => s.snapshot?.project.revision);
-  const selected = useEditor(s => s.selectedId === clip.id); const busy = useEditor(s => s.busy);
+  const selected = useEditor(s => timelineSelection(s).includes(clip.id)); const busy = useEditor(s => s.busy);
   const speedJob = useSpeedJobs(state => state.jobs[`${projectId}:${clip.id}`]);
   const [speedPending, setSpeedPending] = useState(false); const [retimeDraft, setRetimeDraft] = useState(false);
   const retiming = speedPending || speedJob?.status === 'queued' || speedJob?.status === 'processing';
@@ -22,7 +24,9 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
   const changed = useRef<Partial<Clip> | null>(null); const dragCleanup = useRef<(() => void) | null>(null);
   useEffect(() => () => dragCleanup.current?.(), []);
   useEffect(() => {dragCleanup.current?.(); setDraft(null); setRetimeDraft(false); changed.current = null;}, [projectId, revision]);
-  const visible = {...clip, ...draft};
+  const startGroupDrag = useTimelineGroupDrag();
+  const groupDelta = useEditor(s => s.groupDrag?.ids.includes(clip.id) ? s.groupDrag.delta : 0);
+  const visible = {...clip, ...draft, ...(groupDelta ? {start: clip.start + groupDelta} : {})};
   const startDrag = (event: PointerEvent, mode: 'move' | 'left' | 'right') => {
     if(event.button !== 0 || busy) return; event.stopPropagation(); event.preventDefault();
     // preventDefault stops the browser focusing the clip. Explicit focus leaves
@@ -30,7 +34,7 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
     event.currentTarget.closest<HTMLElement>('[data-clip-id]')?.focus({preventScroll: true});
     window.getSelection()?.removeAllRanges();
     const project = useEditor.getState().snapshot?.project; if(!project) return;
-    if(retiming) {useEditor.setState({selectedId: clip.id, selectedTrackId: clipTrackId(project, clip), inspectorTab: 'properties'}); return;}
+    if(retiming) {useEditor.setState({selectedIds: [clip.id], selectedId: clip.id, selectedTrackId: clipTrackId(project, clip), inspectorTab: 'properties'}); return;}
     const retime = mode === 'right' && clip.kind === 'video' && event.ctrlKey;
     let minimumDuration = 1; let maximumDuration = 108_000;
     if(retime) {
@@ -46,8 +50,14 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
       const frame = clip.start + Math.round((event.clientX - event.currentTarget.getBoundingClientRect().left) / pixelsPerFrame);
       void useEditor.getState().splitClip(clip.id, frame); return;
     }
+    if(mode === 'move' && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+      const current = timelineSelection(useEditor.getState());
+      const ids = current.includes(clip.id) ? current.filter(id => id !== clip.id) : [...current, clip.id];
+      useEditor.setState({selectedIds: ids, selectedId: ids[0] ?? null, playing: false}); return;
+    }
+    if(mode === 'move' && startGroupDrag(event, clip.id, pixelsPerFrame)) return;
     const originalTrack = clipTrackId(project, clip); let targetTrack = originalTrack;
-    useEditor.setState({selectedId: clip.id, selectedTrackId: originalTrack, inspectorTab: 'properties', playing: false});
+    useEditor.setState({selectedIds: [clip.id], selectedId: clip.id, selectedTrackId: originalTrack, inspectorTab: 'properties', playing: false});
     const x = event.clientX; const y = event.clientY; const pointerId = event.pointerId; changed.current = null;
     const move = (e: globalThis.PointerEvent) => {
       if(e.pointerId !== pointerId) return;
@@ -97,7 +107,7 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
     dragCleanup.current?.(); dragCleanup.current = cleanup;
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel); window.addEventListener('keydown', key, true);
   };
-  return <div data-clip-id={clip.id} role="button" tabIndex={0} aria-label={`Select ${clip.name}`} aria-pressed={selected} className={`timeline-clip timeline-clip--${clip.track} ${selected ? 'selected' : ''} ${draft ? 'dragging' : ''} ${retimeDraft ? 'timeline-clip--retiming' : ''} ${tool === 'razor' ? 'timeline-clip--razor' : ''}`} style={{left: visible.start * pixelsPerFrame, width: Math.max(8, visible.duration * pixelsPerFrame), top}} onPointerDown={e => startDrag(e, 'move')} onPointerMove={e => {if(tool === 'razor') setCutOffset(Math.round((e.clientX - e.currentTarget.getBoundingClientRect().left) / pixelsPerFrame) * pixelsPerFrame);}} onPointerLeave={() => setCutOffset(null)} onKeyDown={e => {if(e.key === 'Enter') {const project = useEditor.getState().snapshot?.project; useEditor.setState({selectedId: clip.id, selectedTrackId: project ? clipTrackId(project, clip) : null, inspectorTab: 'properties', playing: false});}}}>
+  return <div data-clip-id={clip.id} role="button" tabIndex={0} aria-label={`Select ${clip.name}`} aria-pressed={selected} className={`timeline-clip timeline-clip--${clip.track} ${selected ? 'selected' : ''} ${draft ? 'dragging' : ''} ${retimeDraft ? 'timeline-clip--retiming' : ''} ${tool === 'razor' ? 'timeline-clip--razor' : ''}`} style={{left: visible.start * pixelsPerFrame, width: Math.max(8, visible.duration * pixelsPerFrame), top}} onPointerDown={e => startDrag(e, 'move')} onPointerMove={e => {if(tool === 'razor') setCutOffset(Math.round((e.clientX - e.currentTarget.getBoundingClientRect().left) / pixelsPerFrame) * pixelsPerFrame);}} onPointerLeave={() => setCutOffset(null)} onKeyDown={e => {if(e.key === 'Enter') {const project = useEditor.getState().snapshot?.project; useEditor.setState({selectedIds: [clip.id], selectedId: clip.id, selectedTrackId: project ? clipTrackId(project, clip) : null, inspectorTab: 'properties', playing: false});}}}>
     {clip.track === 'visual' && asset?.thumbnail && <div className="clip-thumbnails" style={{backgroundImage: `url("${asset.thumbnail}")`}}/>}
     <div className="clip-label">{clip.kind === 'text' ? <Type size={11}/> : clip.kind === 'audio' ? <Music2 size={12}/> : <GripVertical size={12}/>}<span>{clip.kind === 'text' ? clip.text.replaceAll('\n', ' ') : clip.name}</span></div>
     {clip.track === 'audio' && <div className="audio-strip"/>}

@@ -1,3 +1,4 @@
+import {timelineSelection} from '../services/timeline-selection';
 import {createId} from '../services/id-service';
 import {create} from 'zustand';
 import {clipSchema, durationOf, type Asset, type Clip, type Command, type RenderJob, type Snapshot} from '../../shared/project';
@@ -19,7 +20,7 @@ function enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
   const next = mutationQueue.then(operation); mutationQueue = next.catch(() => undefined); return next;
 }
 interface EditorState {
-  snapshot: Snapshot | null; connected: boolean; selectedId: string | null; selectedTrackId: string | null; dragTargetTrackId: string | null; frame: number; playing: boolean;
+  snapshot: Snapshot | null; connected: boolean; selectedId: string | null; selectedIds: string[]; groupDrag: {ids: string[]; delta: number} | null; removeSelected: () => Promise<boolean>; selectedTrackId: string | null; dragTargetTrackId: string | null; frame: number; playing: boolean;
   seekRequest: {frame: number; id: number}; seekTo: (frame: number) => void;
   timelineTool: 'select' | 'razor'; splitClip: (id?: string, frame?: number) => Promise<boolean>;
   clipboard: TimelineClipboard | null; copyClip: () => void; pasteClip: () => Promise<boolean>; duplicateClip: () => Promise<boolean>; clearTrack: (id: string) => Promise<boolean>;
@@ -35,6 +36,8 @@ interface EditorState {
   applyPreset: (preset: SavedPreset, values?: PresetValues, duration?: number, frame?: number, clipId?: string, trackId?: string) => Promise<boolean>;
 }
 export const useEditor = create<EditorState>((set, get) => ({
+  selectedIds: [], groupDrag: null,
+  removeSelected: () => {const state = get(); if(state.busy) return Promise.resolve(false); const ids = timelineSelection(state); return ids.length ? state.execute(ids.map(id => ({type: 'clip.remove' as const, id})), `Removed ${ids.length} selected clips`) : Promise.resolve(false);},
   snapshot: null, connected: false, selectedId: 'title-1', selectedTrackId: null, dragTargetTrackId: null, frame: 60, playing: false,
   timelineTool: 'select',
   clipboard: null,
@@ -46,9 +49,9 @@ export const useEditor = create<EditorState>((set, get) => ({
   libraryTab: 'media', inspectorTab: 'properties', zoom: 1, busy: false, importing: null, error: null, notice: null, renderJob: null,
   accept: snapshot => set(state => {
     if(state.snapshot && snapshot.project.revision < state.snapshot.project.revision) return {};
-    if(state.snapshot && state.snapshot.project.id !== snapshot.project.id) return {snapshot, connected: true, libraryTab: 'media', timelineTool: 'select', clipboard: null, selectedId: null, selectedTrackId: null, dragTargetTrackId: null, frame: 0, playing: false, renderJob: null, notice: null, seekRequest: {frame: 0, id: state.seekRequest.id + 1}};
+    if(state.snapshot && state.snapshot.project.id !== snapshot.project.id) return {snapshot, connected: true, libraryTab: 'media', timelineTool: 'select', clipboard: null, selectedIds: [], groupDrag: null, selectedId: null, selectedTrackId: null, dragTargetTrackId: null, frame: 0, playing: false, renderJob: null, notice: null, seekRequest: {frame: 0, id: state.seekRequest.id + 1}};
     const frame = Math.min(Math.round(state.frame * snapshot.project.fps / (state.snapshot?.project.fps ?? snapshot.project.fps)), durationOf(snapshot.project) - 1);
-    return {snapshot: state.snapshot?.project.revision === snapshot.project.revision ? state.snapshot : snapshot, connected: true, selectedId: snapshot.project.clips.some(c => c.id === state.selectedId) ? state.selectedId : null, selectedTrackId: snapshot.project.clips.some(c => c.id === state.selectedId) ? clipTrackId(snapshot.project, snapshot.project.clips.find(c => c.id === state.selectedId)!) : projectTracks(snapshot.project).some(t => t.id === state.selectedTrackId) ? state.selectedTrackId : null, frame, ...(frame !== state.frame ? {seekRequest: {frame, id: state.seekRequest.id + 1}} : {})};
+    return {selectedIds: state.selectedIds.filter(id => snapshot.project.clips.some(c => c.id === id)), snapshot: state.snapshot?.project.revision === snapshot.project.revision ? state.snapshot : snapshot, connected: true, selectedId: snapshot.project.clips.some(c => c.id === state.selectedId) ? state.selectedId : null, selectedTrackId: snapshot.project.clips.some(c => c.id === state.selectedId) ? clipTrackId(snapshot.project, snapshot.project.clips.find(c => c.id === state.selectedId)!) : projectTracks(snapshot.project).some(t => t.id === state.selectedTrackId) ? state.selectedTrackId : null, frame, ...(frame !== state.frame ? {seekRequest: {frame, id: state.seekRequest.id + 1}} : {})};
   }),
   execute: (commands, label, revision) => {const projectId = get().snapshot?.project.id; return enqueueMutation(async () => {
     const state = get(); if(!state.snapshot || state.snapshot.project.id !== projectId) return false;
@@ -67,16 +70,19 @@ export const useEditor = create<EditorState>((set, get) => ({
   copyClip: () => {
     const state = get(); const project = state.snapshot?.project;
     const clip = project?.clips.find(c => c.id === state.selectedId); if(!project || !clip) return;
-    set({clipboard: {projectId: project.id, fps: project.fps, clip: structuredClone(clip)}, notice: `Copied ${clip.name}. Paste at the playhead with Ctrl+V.`});
+    set({clipboard: {projectId: project.id, fps: project.fps, clip: structuredClone(clip), clips: structuredClone(project.clips.filter(c => timelineSelection(state).includes(c.id)))}, notice: `Copied ${clip.name}. Paste at the playhead with Ctrl+V.`});
   },
   pasteClip: async () => {
     const state = get(); const clipboard = state.clipboard;
     if(!clipboard || clipboard.projectId !== state.snapshot?.project.id) return false;
+    if(clipboard.clips && clipboard.clips.length > 1) return insertTimelineGroup(clipboard.clips, clipboard.fps, state.frame, 'Pasted');
     return insertTimelineCopy(clipboard.clip, clipboard.fps, state.frame, state.selectedTrackId, 'Pasted');
   },
   duplicateClip: async () => {
     const state = get(); const project = state.snapshot?.project; const clip = project?.clips.find(c => c.id === state.selectedId);
     if(!project || !clip) return false;
+    const clips = project.clips.filter(c => timelineSelection(state).includes(c.id));
+    if(clips.length > 1) return insertTimelineGroup(clips, project.fps, Math.max(...clips.map(c => c.start + c.duration)), 'Duplicated');
     return insertTimelineCopy(clip, project.fps, clip.start + clip.duration, clipTrackId(project, clip), 'Duplicated');
   },
   clearTrack: async id => {
@@ -151,6 +157,28 @@ export const useEditor = create<EditorState>((set, get) => ({
     catch(error) {set({error: (error as Error).message});}
   },
 }));
+
+// Existing canvas/inspector single-selection actions must not revive an older group.
+useEditor.subscribe((state, previous) => {
+  if(state.selectedId !== previous.selectedId && state.selectedIds === previous.selectedIds && state.selectedIds.length) useEditor.setState({selectedIds: []});
+});
+
+async function insertTimelineGroup(sources: Clip[], fps: number, start: number, action: string): Promise<boolean> {
+  const state = useEditor.getState(); const project = state.snapshot?.project;
+  if(!project || state.busy) return false;
+  try {
+    const first = Math.min(...sources.map(c => c.start));
+    const ids = new Map(sources.map(c => [c.id, createId()]));
+    const clips = sources.map(source => {
+      const clip = copyTimelineClip(project, source, ids.get(source.id)!, start + Math.round((source.start - first) * project.fps / fps), clipTrackId(project, source), fps);
+      if(clip.caption && ids.has(clip.caption.parentClipId)) clip.caption = {...clip.caption, parentClipId: ids.get(clip.caption.parentClipId)!};
+      return clip;
+    });
+    const ok = await state.execute(clips.map(clip => ({type: 'clip.add', clip})), `${action} ${clips.length} clips`, project.revision);
+    if(ok && useEditor.getState().snapshot?.project.id === project.id) useEditor.setState({selectedId: clips[0].id, selectedIds: clips.map(c => c.id), playing: false});
+    return ok;
+  } catch(error) {useEditor.setState({error: (error as Error).message}); return false;}
+}
 
 async function insertTimelineCopy(source: Clip, fps: number, start: number, trackId: string | null, action: string): Promise<boolean> {
   const state = useEditor.getState(); const project = state.snapshot?.project;

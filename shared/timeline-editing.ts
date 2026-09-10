@@ -11,7 +11,7 @@ export function splitTarget(project: Project, selectedId: string | null, trackId
   return tracks.flatMap(t => project.clips.filter(c => clipTrackId(project, c) === t.id)).find(c => canSplitAt(c, frame));
 }
 
-export interface TimelineClipboard {projectId: string; fps: number; clip: Clip}
+export interface TimelineClipboard {projectId: string; fps: number; clip: Clip; clips?: Clip[]}
 
 /** Copies the complete edit, including source trim, animation offsets and saved recipes. */
 export function copyTimelineClip(project: Project, source: Clip, id: string, start: number, trackId: string | null, sourceFps = project.fps): Clip {

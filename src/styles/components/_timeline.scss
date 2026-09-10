@@ -70,3 +70,6 @@
 .timeline-footer {height: 25px; font-size: 9px; padding-inline: 13px; background: #171d25; > span:nth-child(2) {color: var(--muted); kbd {font-size: 8px;}}}
 .timeline-context-menu {position: fixed; z-index: 80; width: 250px; padding: 5px; background: #222b36; border: 1px solid #405066; border-radius: 7px; box-shadow: 0 12px 30px #0008; > p {font-size: 10px; color: var(--muted); padding: 7px 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--border); margin-bottom: 4px;} button {display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; border-radius: 4px; text-align: left; font-size: 11px; &:hover:not(:disabled), &:focus-visible {background: #344354;} kbd {margin-left: auto; font-size: 9px;}} &__remove {color: var(--danger); border-top: 1px solid var(--border); margin-top: 3px;}}
 @media (max-width: 1150px) {.timeline-footer > span:nth-child(2) {display: none;} .timeline-sequence-name {max-width: 230px !important;} .timeline-tool-group {padding-right: 5px;} .timeline-tools {gap: 5px;}}
+
+.timeline-content {touch-action: none;}
+.timeline-marquee {position: absolute; z-index: 8; pointer-events: none; border: 1px solid var(--accent); background: #74dfd022;}

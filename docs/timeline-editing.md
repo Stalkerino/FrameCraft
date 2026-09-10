@@ -88,3 +88,9 @@ Example prompts:
 - **Saved assets:** range editing rearranges existing clips; reusable graphic recipes remain in the shared preset library. See the [asset pack](asset-pack.md) for comparison and presentation graphics.
 
 The tool runs through the same validated project repository as manual editing. It uses revision checks and a single undo transaction, and changes appear live in the editor. See the [MCP reference](feature-overview.md#mcp-tools) and [architecture](architecture.md) for the shared domain and transport boundaries.
+
+## Select and edit multiple clips
+
+Drag from an empty timeline area to draw a selection rectangle across clips and tracks. Shift/Ctrl (or Cmd) adds to the selection; Shift/Ctrl-click a clip to add or remove it. Drag any selected clip horizontally to move the group while preserving track assignments and relative timing. The earliest clip cannot move before frame zero.
+
+Delete/Backspace, Copy/Paste and Duplicate act on the selection. Group copies retain track assignments and spacing; pasted groups start at the playhead and duplicates follow the end of the group. Each group edit is one undo step. Escape cancels a rectangle or group drag, and a plain click on empty space clears the selection and seeks. Trim handles still edit the individual clip.

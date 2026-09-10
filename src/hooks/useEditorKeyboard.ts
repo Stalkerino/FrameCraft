@@ -19,7 +19,7 @@ export function useEditorKeyboard() {
       else if(modifier && event.key.toLowerCase() === 's') {event.preventDefault(); useEditor.setState({notice: 'Your project is saved automatically on this device.'});}
       else if(event.code === 'Space' && !target?.closest('button')) {event.preventDefault(); useEditor.setState({playing: !state.playing});}
       else if((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && !target?.closest('button')) {event.preventDefault(); state.seekTo(Math.max(0, Math.min(durationOf(project) - 1, state.frame + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? Math.round(project.fps) : 1))));}
-      else if((event.key === 'Delete' || event.key === 'Backspace') && state.selectedId) {event.preventDefault(); if(!state.busy) void state.execute([{type: 'clip.remove', id: state.selectedId}], 'Removed selected clip');}
+      else if((event.key === 'Delete' || event.key === 'Backspace') && state.selectedId) {event.preventDefault(); if(!state.busy) void state.removeSelected();}
       else if(!modifier && !event.altKey && event.key.toLowerCase() === 's') {event.preventDefault(); if(!event.repeat) void state.splitClip();}
       else if(!modifier && !event.altKey && event.key.toLowerCase() === 'n') {event.preventDefault(); if(!event.repeat) useWorkspace.getState().configure({snapping: !useWorkspace.getState().snapping});}
       else if(!modifier && !event.altKey && ['c', 'v'].includes(event.key.toLowerCase())) {event.preventDefault(); useEditor.setState({timelineTool: event.key.toLowerCase() === 'c' ? 'razor' : 'select'});}

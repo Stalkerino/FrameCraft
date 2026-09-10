@@ -25,6 +25,6 @@ export function TimelineContextMenu({clipId, x, y, onClose}: {clipId: string; x:
     <button role="menuitem" disabled={!state.clipboard || state.busy} onClick={() => run(() => void state.pasteClip())}><ClipboardPaste size={14}/>Paste at playhead<kbd>Ctrl+V</kbd></button>
     <button role="menuitem" disabled={state.busy} onClick={() => run(() => void state.duplicateClip())}><CopyPlus size={14}/>Duplicate<kbd>Ctrl+D</kbd></button>
     <button role="menuitem" disabled={state.busy || !canSplitAt(clip, state.frame)} onClick={() => run(() => void state.splitClip(clipId))}><Scissors size={14}/>Split at playhead<kbd>S</kbd></button>
-    <button role="menuitem" className="timeline-context-menu__remove" disabled={state.busy} onClick={() => run(() => void state.execute([{type: 'clip.remove', id: clipId}], `Removed ${clip.name}`.slice(0, 180)))}><Trash2 size={14}/>Remove clip<kbd>Del</kbd></button>
+    <button role="menuitem" className="timeline-context-menu__remove" disabled={state.busy} onClick={() => run(() => void state.removeSelected())}><Trash2 size={14}/>Remove clip<kbd>Del</kbd></button>
   </div>;
 }
