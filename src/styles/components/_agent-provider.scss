@@ -1,6 +1,7 @@
-.agent-provider-settings {padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-  summary {cursor: pointer; color: var(--muted-strong); font-size: 12px;}
-  > .field, > .button, > p {margin-top: 10px;}
+.agent-provider-settings {padding: 12px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  h3 {color: var(--text); font-size: 11px;}
+  > .field, > .button, > p {margin-top: 8px;}
   input, select {width: 100%; min-width: 0;}
+  input {height: 28px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); font-size: 11px;}
   > .button + .button {margin-left: 6px;}
 }

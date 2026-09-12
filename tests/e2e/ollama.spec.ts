@@ -50,13 +50,14 @@ test('network Ollama uses real MCP tools, approval, streaming, undo and provider
   try {
     const before = (await (await request.get('/api/project')).json()).project;
     await page.goto('/'); await page.getByRole('button', {name: 'Codex', exact: true}).click();
-    await page.getByText('AI provider · Codex CLI', {exact: true}).click();
+    await page.getByRole('tab', {name: 'Settings', exact: true}).click();
     await page.getByRole('combobox', {name: 'AI provider', exact: true}).selectOption('ollama');
     await page.getByRole('textbox', {name: 'Ollama server URL'}).fill(url);
     await page.getByRole('button', {name: 'Save provider settings'}).click();
     await page.getByRole('button', {name: 'Load Ollama models'}).click();
     await expect(page.getByRole('combobox', {name: 'Ollama model', exact: true})).toBeEnabled();
     await page.getByRole('combobox', {name: 'Ollama model', exact: true}).selectOption('local-test:8b');
+    await page.getByRole('tab', {name: 'Chat', exact: true}).click();
     await page.getByRole('button', {name: 'Start Ollama', exact: true}).click();
     await expect(page.getByText('Ollama · MCP connected', {exact: true})).toBeVisible();
     await page.getByRole('textbox', {name: 'Message Ollama'}).fill('Add a title'); await page.getByRole('button', {name: 'Send', exact: true}).click();
@@ -76,10 +77,11 @@ test('network Ollama uses real MCP tools, approval, streaming, undo and provider
     expect((await undo.json()).project.clips.some((c: {id: string}) => c.id === 'ollama-title-2')).toBe(false);
     await page.reload(); await page.getByRole('button', {name: 'Ollama', exact: true}).click();
     await expect(page.getByText('Title added through Framecraft tools.', {exact: true})).toHaveCount(2);
-    await page.getByText('AI provider · Ollama', {exact: true}).click();
+    await page.getByRole('tab', {name: 'Settings', exact: true}).click();
     await page.getByRole('combobox', {name: 'Ollama workspace access'}).selectOption('commands');
     await page.getByRole('textbox', {name: 'Ollama workspace folder'}).fill(workspace);
     await page.getByRole('button', {name: 'Save provider settings'}).click();
+    await page.getByRole('tab', {name: 'Chat', exact: true}).click();
     await page.getByRole('button', {name: 'Start Ollama', exact: true}).click();
     await page.getByRole('switch', {name: 'Automatically allow Ollama tool calls'}).click();
     await expect(page.getByRole('switch', {name: 'Automatically allow Ollama tool calls'})).not.toBeChecked();

@@ -17,8 +17,8 @@ export function AgentProviderSettings() {
   const disabled = !online || pending || ['working', 'starting'].includes(session.status);
   const runtime = session.provider === 'ollama' && session.ollamaRuntime?.model === session.model ? session.ollamaRuntime : undefined;
   const gib = (bytes: number) => (bytes / 1024 ** 3).toFixed(1);
-  return <details className="agent-provider-settings" open={session.provider === 'ollama' && session.status === 'idle' ? true : undefined}>
-    <summary>AI provider · {session.provider === 'ollama' ? 'Ollama' : 'Codex CLI'}</summary>
+  return <section className="agent-provider-settings" aria-label="Provider settings">
+    <h3>Provider & connection</h3>
     <Field label="AI provider"><select aria-label="AI provider" value={provider} disabled={disabled} onChange={event => setProvider(event.target.value as typeof provider)}><option value="codex">Codex CLI</option><option value="ollama">Ollama · Local / network</option></select></Field>
     {provider === 'ollama' && <>
       <Field label="Ollama server URL"><input type="url" aria-label="Ollama server URL" value={url} placeholder="http://192.168.1.50:11434" disabled={disabled} onChange={event => setUrl(event.target.value)}/></Field>
@@ -43,5 +43,5 @@ export function AgentProviderSettings() {
     </>}
     <Button disabled={disabled || !url.trim() || !Number.isInteger(context) || context < 4096 || context > 262144} onClick={() => void configureProvider({provider, ollamaUrl: url, contextLength: context, workspaceAccess, workspacePath})}>Save provider settings</Button>
     {session.provider === 'ollama' && <Button disabled={disabled} onClick={() => void refreshModels()}>Load Ollama models</Button>}
-  </details>;
+  </section>;
 }

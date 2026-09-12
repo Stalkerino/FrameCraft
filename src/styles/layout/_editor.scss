@@ -1,6 +1,6 @@
 @use '../abstracts/tokens' as *;
 
-.editor-layout {display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 56px 38px minmax(0, 1fr) 6px var(--timeline-height, 270px); height: 100dvh; min-height: 600px; min-width: 960px; background: var(--bg);}
+.editor-layout {display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 44px 30px minmax(0, 1fr) 6px var(--timeline-height, 270px); height: 100dvh; min-height: 600px; min-width: 960px; background: var(--bg);}
 .editor-workspace {display: grid; grid-template-columns: var(--library-width, 320px) var(--left-handle, 6px) minmax(0, 1fr) var(--right-handle, 6px) var(--inspector-width, 320px); min-height: 0; overflow: hidden;}
 .editor-workspace > * {grid-row: 1; @for $column from 1 through 5 {&:nth-child(#{$column}) {grid-column: $column;}}}
 .workspace-panel {display: flex; min-width: 0; min-height: 0; overflow: hidden; > * {flex: 1; min-width: 0;} &[hidden] {display: none;}}
@@ -13,20 +13,20 @@
 .workspace-toolbar__panels {display: flex; gap: 4px; margin-left: auto; .icon-button {width: 28px; height: 27px;} [aria-pressed='true'] {color: var(--text); background: #ffffff07;}}
 .shortcut-guide {padding: 22px; display: grid; gap: 22px; section h3 {font-size: 12px; color: var(--accent);} dl {margin: 8px 0 0;} dl > div {display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--border-subtle);} dt {font-size: 12px;} dd {margin: 0;} kbd {font-size: 10px;} > p {font-size: 11px; color: var(--muted);}}
 
-.topbar {display: flex; align-items: center; gap: 22px; padding: 0 18px; background: #11151a; border-bottom: 1px solid var(--border);}
-.brand {display: flex; align-items: center; gap: 9px; flex-shrink: 0; font-size: 18px; font-weight: 650; letter-spacing: -.65px; padding-right: 22px; border-right: 1px solid var(--border);}
+.topbar {display: flex; align-items: center; gap: 14px; padding: 0 12px; background: #11151a; border-bottom: 1px solid var(--border);}
+.brand {display: flex; align-items: center; gap: 9px; flex-shrink: 0; font-size: 16px; font-weight: 650; letter-spacing: -.65px; padding-right: 14px; border-right: 1px solid var(--border);}
 .brand__mark {width: 27px; height: 28px; border-radius: 6px; background: var(--accent); color: #09262b; display: flex; align-items: center; justify-content: center; font-size: 28px; line-height: 1; font-style: italic; padding: 0 4px 3px 0; position: relative; font-family: Arial, sans-serif; font-weight: 900; span {position: absolute; height: 4px; width: 4px; right: 5px; bottom: 6px; background: #09262b;}}
 .brand__suffix {font-size: 8px; letter-spacing: 1.1px; text-transform: uppercase; font-weight: 500; color: var(--muted); margin-left: 7px;}
 .project-title {display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--muted-strong); input {max-width: 260px; border: 1px solid var(--border); background: var(--bg); padding: 4px 7px; border-radius: 4px;}}
 .project-title__content {display: flex; flex-direction: column; min-width: 0; gap: 1px;}
 .project-title__meta {font-size: 10px; color: var(--muted);}
 .project-title .project-menu__trigger {display: flex; align-items: center; gap: 12px; padding: 0; color: var(--text); font-size: 12px; font-weight: 600;}
-.topbar__actions {display: flex; align-items: center; gap: 10px; margin-left: auto; flex-shrink: 0; .button {min-height: 32px; padding: 6px 12px; font-size: 11px;}}
+.topbar__actions {display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; .button {min-height: 28px; padding: 4px 10px; font-size: 11px;}}
 .save-status {display: flex; align-items: center; gap: 5px; margin-right: 4px; color: var(--muted-strong); font-size: 10px; svg {color: var(--accent);} &--offline svg {color: var(--muted);}}
 .library-shell {display: flex; min-height: 0; background: var(--panel);}
-.tool-rail {width: $rail-width; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; padding: 9px 5px; gap: 4px; background: #14181e; border-right: 1px solid var(--border); overflow-y: auto; > button {width: 54px; min-height: 56px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted-strong); border-radius: 5px; transition: background $transition; span {font-size: 9px;} svg {width: 18px; height: 18px;} &:hover {color: var(--text); background: var(--panel-raised);} &.active {background: var(--accent-soft); color: var(--accent);}} > .tool-rail__agent {margin-top: auto; color: var(--purple);}}
-.library {position: relative; display: flex; flex-direction: column; padding: 16px 14px; flex: 1; min-width: 0; overflow-y: auto; > * {flex-shrink: 0;} &--drop {box-shadow: inset 0 0 0 2px var(--accent); background: #192b30;}}
-.panel-heading {display: flex; justify-content: space-between; align-items: center; gap: 8px; h2 {font-size: 14px; letter-spacing: -.2px;}}
+.tool-rail {width: $rail-width; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; padding: 5px 3px; gap: 2px; background: #14181e; border-right: 1px solid var(--border); overflow-y: auto; > button {width: 46px; min-height: 42px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted-strong); border-radius: 5px; transition: background $transition; span {font-size: 9px;} svg {width: 16px; height: 16px;} &:hover {color: var(--text); background: var(--panel-raised);} &.active {background: var(--accent-soft); color: var(--accent);}} > .tool-rail__agent {margin-top: auto; color: var(--purple);}}
+.library {position: relative; display: flex; flex-direction: column; padding: 10px; flex: 1; min-width: 0; overflow-y: auto; > * {flex-shrink: 0;} &--drop {box-shadow: inset 0 0 0 2px var(--accent); background: #192b30;}}
+.panel-heading {display: flex; justify-content: space-between; align-items: center; gap: 8px; h2 {font-size: 12px; letter-spacing: -.2px;}}
 .panel-description {font-size: 11px; line-height: 1.6; color: var(--muted); margin-top: 6px;}
 .library-footer {margin-top: auto; padding-top: 18px; display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 10px;}
 .inspector {background: var(--panel); min-width: 0; min-height: 0; display: flex; flex-direction: column;}

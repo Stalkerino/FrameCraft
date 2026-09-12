@@ -5,18 +5,22 @@ test('embedded chat streams replies, handles approvals/questions, preserves erro
   await page.goto('/'); await page.getByRole('complementary', {name: 'Inspector and Codex'}).getByRole('button', {name: 'Codex AI', exact: true}).click();
   await page.getByRole('button', {name: 'Start Codex', exact: true}).click();
   const prompt = page.getByRole('textbox', {name: 'Message Codex'}); const send = page.getByRole('button', {name: 'Send', exact: true});
+  await page.getByRole('tab', {name: 'Settings', exact: true}).click();
   await page.getByLabel('Codex model', {exact: true}).selectOption('test-thinking');
   await expect(page.getByLabel('Thinking effort', {exact: true})).toHaveValue('low');
   await page.getByLabel('Thinking effort', {exact: true}).selectOption('high');
   await expect(page.getByLabel('Thinking effort', {exact: true})).toHaveValue('high');
   await page.getByLabel('Response speed', {exact: true}).selectOption('priority');
   await expect(page.getByLabel('Response speed', {exact: true})).toHaveValue('priority');
+  await page.getByRole('tab', {name: 'Chat', exact: true}).click();
   await prompt.fill('report model'); await send.click();
   await expect(page.locator('.agent-message--assistant')).toContainText('"model":"test-thinking","effort":"high","serviceTier":"priority"');
   await page.reload(); await page.getByRole('complementary', {name: 'Inspector and Codex'}).getByRole('button', {name: 'Codex AI', exact: true}).click();
+  await page.getByRole('tab', {name: 'Settings', exact: true}).click();
   await expect(page.getByLabel('Codex model', {exact: true})).toHaveValue('test-thinking');
   await page.getByLabel('Codex model', {exact: true}).selectOption('test-model');
   await expect(page.getByLabel('Response speed', {exact: true})).toHaveValue('');
+  await page.getByRole('tab', {name: 'Chat', exact: true}).click();
   await prompt.fill('Read my timeline'); await expect(send).toBeEnabled(); await send.click();
   await expect(page.locator('.agent-message--assistant').last()).toContainText('Codex reply');
   // A started app-server is not itself evidence of an initialized MCP connection.

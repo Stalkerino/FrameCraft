@@ -1,11 +1,11 @@
 .agent-model-settings {
-  padding: 8px 15px 12px;
+  padding: 10px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   background: #171b20;
   &__heading {display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; color: var(--muted-strong); font-size: 10px; > span {display: flex; align-items: center; gap: 7px;}}
   &__fields {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; .field {margin: 0; min-width: 0; &:first-child {grid-column: 1 / -1;} > span {font-size: 9px;}}
-    select {width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid #383e47; border-radius: 6px; background: #101418; color: var(--text); font-size: 11px; text-overflow: ellipsis; &:disabled {opacity: .55;} &:focus-visible {outline: 1px solid var(--purple); outline-offset: 2px;}}
+    select {width: 100%; min-width: 0; padding: 4px 6px; border: 1px solid #383e47; border-radius: 6px; background: #101418; color: var(--text); font-size: 11px; text-overflow: ellipsis; &:disabled {opacity: .55;} &:focus-visible {outline: 1px solid var(--purple); outline-offset: 2px;}}
   }
   &__hint, &__error {margin-top: 6px; font-size: 9px; line-height: 1.5; color: var(--muted);}
   &__error {color: var(--danger);}
