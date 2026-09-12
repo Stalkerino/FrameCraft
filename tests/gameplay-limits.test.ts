@@ -28,7 +28,7 @@ it('retains more than 12 citations and 100 shots, including cached evidence afte
     const updated = await restarted.save(project, {...input, id: saved.id, expectedVersion: saved.version});
     expect(updated.shots[0].evidence).toEqual(evidence); expect(updated.shots).toHaveLength(101);
     await expect(restarted.save(project, {...input, shots: [{...input.shots[0], evidence: [5.123]}]})).rejects.toThrow('Inspect the cited');
-    await expect(restarted.save(project, {...input, shots: [{...input.shots[0], evidence: [22]}]})).rejects.toThrow('inside the source');
+    await expect(restarted.save(project, {...input, shots: [{...input.shots[0], evidence: [22]}]})).rejects.toThrow('shots[0].evidence[0]');
     expect(inspectVideoSchema.parse({reportId: report.id, start: 1, end: 7900}).end).toBe(7900);
     const tiny = {reportId: report.id, start: 1e-7, end: 2e-7}; expect(cachedInspection(report.id, inspectionCacheKey(tiny))).toEqual(tiny);
   } finally {await rm(directory, {recursive: true, force: true});}

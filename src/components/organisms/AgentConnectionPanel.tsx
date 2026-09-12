@@ -7,6 +7,7 @@ import {Button} from '../atoms/Button';
 export function AgentConnectionPanel({status, error}: {status: ServerStatus | null; error: string | null}) {
   const [copied, setCopied] = useState(false); const [copyError, setCopyError] = useState(false);
   const session = useAgent(s => s.session);
+  if(session.provider === 'ollama') return <div className="agent-connection-panel"><h4>Ollama on your network</h4><p>Server: <code>{session.providerSettings?.ollamaUrl}</code></p><p>Load models, choose a tool-capable model, then start Ollama from Chat. Framecraft connects its MCP tools automatically.</p><p>For Automatic Cuts and visual review, select a model with vision support. No Codex CLI or cloud account is used by this provider.</p><p>Ollama must listen on a network interface reachable from the editor host. For local speech recognition, keep the composer’s Speech recognition setting on Local.</p>{error && <p role="alert">{error}</p>}</div>;
   const command = `codex mcp add framecraft -- node "${status?.rootDir.replaceAll('\\', '/') || '<project-folder>'}/scripts/mcp.mjs"`;
   return <div className="agent-connection-panel"><div className="codex-step"><Terminal size={16}/><div><h4>Built into your editor</h4><p>Start Codex from Chat. Framecraft connects the timeline tools automatically and uses your existing Codex sign-in. Send your editing requests here.</p></div></div>
     {error && <p className="connection-error" role="alert">{error}</p>}

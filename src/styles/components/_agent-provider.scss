@@ -1,0 +1,6 @@
+.agent-provider-settings {padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  summary {cursor: pointer; color: var(--muted-strong); font-size: 12px;}
+  > .field, > .button, > p {margin-top: 10px;}
+  input, select {width: 100%; min-width: 0;}
+  > .button + .button {margin-left: 6px;}
+}

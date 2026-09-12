@@ -11,7 +11,7 @@ export function AgentComposer() {
   const working = session.status === 'working';
   const submit = () => {if(!voice.busy && online && session.status === 'ready' && !pending) void send();};
   return <div className="agent-composer">
-    <textarea aria-label="Message Codex" placeholder="Describe your next edit…" rows={3} maxLength={16_000} value={draft} readOnly={voice.busy || pending} onChange={event => useAgent.setState({draft: event.target.value})} onKeyDown={event => {
+    <textarea aria-label={session.provider === 'ollama' ? 'Message Ollama' : 'Message Codex'} placeholder="Describe your next edit…" rows={3} maxLength={16_000} value={draft} readOnly={voice.busy || pending} onChange={event => useAgent.setState({draft: event.target.value})} onKeyDown={event => {
       if(event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {event.preventDefault(); submit();}
     }}/>
     <div className="agent-composer__actions"><div className="agent-composer__voice"><IconButton label={voice.phase === 'requesting' || voice.phase === 'transcribing' ? 'Cancel dictation' : voice.listening ? 'Stop dictation' : 'Dictate a prompt'} aria-pressed={voice.listening} className={voice.listening ? 'listening' : ''} disabled={!voice.available || pending} onClick={() => {if(voice.phase === 'requesting' || voice.phase === 'transcribing') voice.cancel(); else if(voice.listening) voice.stop(); else {base.current = draft; voice.start();}}}>{voice.listening ? <MicOff size={16}/> : <Mic size={16}/>}</IconButton><select aria-label="Dictation language" disabled={voice.busy} value={voice.language} onChange={event => voice.setLanguage(event.target.value)}><option value="en-US">EN</option><option value="fr-FR">FR</option></select></div>

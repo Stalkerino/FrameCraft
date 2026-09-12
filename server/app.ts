@@ -14,7 +14,7 @@ import {MediaService} from './services/media-service';
 import {RenderService} from './services/render-service';
 import {EncoderService} from './services/encoder-service';
 import {AgentConnectionService} from './services/agent-connection-service';
-import {CodexSessionService} from './services/codex-session-service';
+import {AgentSessionService} from './services/agent-session-service';
 import {agentRoutes} from './routes/agent-routes';
 import {serverOrigins} from './services/network-service';
 import {TranscriptRepository} from './repositories/transcript-repository';
@@ -64,7 +64,7 @@ export async function createApp() {
   const audioMix = new AudioMixService(repository);
   const sounds = new SoundLibraryService(libraryDir, media, repository); await sounds.init();
   const agents = new AgentConnectionService();
-  const codex = new CodexSessionService({root: rootDir, data: dataDir, url: baseUrl});
+  const codex = new AgentSessionService({root: rootDir, data: dataDir, url: baseUrl}); await codex.init();
   const analysis = new AnalysisService(new TranscriptRepository(path.join(dataDir, 'transcripts')), new LocalInferenceProvider(rootDir), {data: dataDir, media: mediaDir, cache: path.resolve(process.env.FRAMECRAFT_MODEL_CACHE || path.join(rootDir, '.cache', 'models'))});
   let agentLastSeen: string | null = null;
   let editorContext = {frame: 0, selectedId: null as string | null, selectedTrackId: null as string | null};

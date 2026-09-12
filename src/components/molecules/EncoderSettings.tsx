@@ -17,5 +17,6 @@ export function EncoderSettings({settings, onChange}: {settings: ExportSettings;
     {supportsEffort && <Field label="Encoding effort"><select aria-label="Encoding effort" value={settings.preset} onChange={event => onChange({preset: event.target.value as ExportSettings['preset']})}><option value="ultrafast">Fastest</option><option value="veryfast">Very fast</option><option value="fast">Fast</option><option value="medium">Balanced</option><option value="slow">Thorough</option><option value="veryslow">Most thorough</option></select></Field>}
     {supportsEffort && <p className="field-help">More effort improves compression efficiency and takes longer to encode.</p>}
     <p className="field-help">Quality uses CRF on CPU and CQ/QP on GPU; equal numbers may produce different file sizes. Target bitrate is available for both.</p>
+    {settings.encoder !== 'cpu' && <p className="field-help">GPU encoding and effect rendering are separate capabilities. Export progress shows the active decoder and compositor. Audio and some filters use CPU; unsupported effects retain their appearance through the shared renderer.</p>}
   </div>;
 }

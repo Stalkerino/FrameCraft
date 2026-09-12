@@ -11,7 +11,7 @@ export interface HardwareEncoder {
 }
 
 /** Changes the encoding step only. Remotion's final audio mux keeps -c:v copy. */
-export function hardwareEncodingArguments(args: string[], encoder: HardwareEncoder, settings: ExportSettings) {
+export function hardwareEncodingArguments(args: string[], encoder: HardwareEncoder, settings: ExportSettings, hardwareFrames = false) {
   const codecIndex = args.indexOf('-c:v');
   if(codecIndex < 0 || args[codecIndex + 1] === 'copy') return args;
   const result: string[] = [];
@@ -29,18 +29,18 @@ export function hardwareEncodingArguments(args: string[], encoder: HardwareEncod
   const extra: string[] = [];
   if(encoder.backend === 'vaapi') {
     result.unshift('-vaapi_device', encoder.device!);
-    filter = [filter, 'format=nv12', 'hwupload'].filter(Boolean).join(',');
+    if(!hardwareFrames) filter = [filter, 'format=nv12', 'hwupload'].filter(Boolean).join(',');
     extra.push(...(quality ? ['-rc_mode', 'CQP', '-qp', settings.codec === 'av1' ? String(Math.round(settings.crf / 63 * 255)) : q] : ['-rc_mode', 'VBR', '-b:v', bitrate]));
   } else if(encoder.backend === 'amf') {
     const speed = ['ultrafast', 'veryfast'].includes(settings.preset) ? 'speed' : ['slow', 'veryslow'].includes(settings.preset) ? 'quality' : 'balanced';
-    extra.push('-pix_fmt', 'nv12', '-quality', speed, ...(
+    extra.push(...(hardwareFrames ? [] : ['-pix_fmt', 'nv12']), '-quality', speed, ...(
       quality ? ['-rc', 'cqp', '-qp_i', settings.codec === 'av1' ? String(Math.max(1, Math.round(settings.crf / 63 * 255))) : q,
         '-qp_p', settings.codec === 'av1' ? String(Math.max(1, Math.round(settings.crf / 63 * 255))) : q]
         : ['-rc', 'vbr_peak', '-b:v', bitrate, '-maxrate', `${settings.videoBitrate * 1.5}M`]
     ));
   } else {
     const speed = {ultrafast: 'p1', veryfast: 'p2', fast: 'p3', medium: 'p4', slow: 'p6', veryslow: 'p7'}[settings.preset];
-    extra.push('-pix_fmt', 'yuv420p', '-preset', speed, '-rc', 'vbr', ...(
+    extra.push(...(hardwareFrames ? [] : ['-pix_fmt', 'yuv420p']), '-preset', speed, '-rc', 'vbr', ...(
       quality ? ['-cq', q, '-b:v', '0'] : ['-b:v', bitrate]
     ));
   }

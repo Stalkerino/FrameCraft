@@ -1,3 +1,4 @@
+import {useAgentName} from '../../stores/agent-store';
 import {AlignCenter, AlignLeft, AlignRight, AudioLines, Boxes, Copy, Crosshair, Film, Image, SlidersHorizontal, Sparkles, Trash2, Type, Video} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import {useEditor} from '../../stores/editor-store';
@@ -19,12 +20,13 @@ import {durationOf, formatTimecode, type Clip, type EffectName} from '../../../s
 import {acceptsClip, clipTrackId, projectTracks} from '../../../shared/tracks';
 
 export function Inspector() {
+  const agentName = useAgentName();
   const snapshot = useEditor(s => s.snapshot);
   const id = useEditor(s => s.selectedId);
   const tab = useEditor(s => s.inspectorTab);
   const clip = snapshot?.project.clips.find(candidate => candidate.id === id);
-  return <aside className={`inspector ${tab === 'codex' ? 'inspector--codex' : ''}`} aria-label="Inspector and Codex">
-    <div className="inspector-tabs"><button aria-pressed={tab === 'properties'} className={tab === 'properties' ? 'active' : ''} onClick={() => openInspectorPanel('properties')}><SlidersHorizontal size={14}/> Properties</button><button aria-pressed={tab === 'codex'} className={tab === 'codex' ? 'active' : ''} onClick={() => openInspectorPanel('codex')}><Sparkles size={14}/> Codex <span className="ai-badge">AI</span></button></div>
+  return <aside className={`inspector ${tab === 'codex' ? 'inspector--codex' : ''}`} aria-label={`Inspector and ${agentName}`}>
+    <div className="inspector-tabs"><button aria-pressed={tab === 'properties'} className={tab === 'properties' ? 'active' : ''} onClick={() => openInspectorPanel('properties')}><SlidersHorizontal size={14}/> Properties</button><button aria-pressed={tab === 'codex'} className={tab === 'codex' ? 'active' : ''} onClick={() => openInspectorPanel('codex')}><Sparkles size={14}/> {agentName} <span className="ai-badge">AI</span></button></div>
     {tab === 'codex' ? <CodexPanel/> : clip ? <ClipProperties key={clip.id} clip={clip}/> : <div className="inspector-content">
       <div className="empty-state inspector-empty"><SlidersHorizontal size={25}/><p>No clip selected</p><span>Select a clip on the timeline or canvas to edit its properties.</span></div>
       {snapshot && <section className="inspector-project-summary"><h3>{snapshot.project.name}</h3><dl><div><dt>Sequence</dt><dd>{snapshot.project.width} × {snapshot.project.height}</dd></div><div><dt>Frame rate</dt><dd>{snapshot.project.fps} fps</dd></div><div><dt>Duration</dt><dd>{formatTimecode(durationOf(snapshot.project), snapshot.project.fps)}</dd></div><div><dt>Timeline</dt><dd>{snapshot.project.clips.length} clips · {projectTracks(snapshot.project).length} tracks</dd></div></dl></section>}

@@ -1,3 +1,4 @@
+import {useAgentName} from '../../stores/agent-store';
 import {useRef, useState} from 'react';
 import {Boxes, Plus, Search, Sparkles, Upload} from 'lucide-react';
 import type {PresetDefinition, SavedPreset} from '../../../shared/asset-presets';
@@ -10,6 +11,7 @@ import {PresetCard} from '../molecules/PresetCard';
 import {PresetDetailDialog} from './PresetDetailDialog';
 import {PresetEditorDialog} from './PresetEditorDialog';
 export function AssetStudio() {
+  const agentName = useAgentName();
   const {presets, loaded, error: libraryError} = usePresets(); const [query, setQuery] = useState(''); const [category, setCategory] = useState('all');
   const [selected, setSelected] = useState<SavedPreset | null>(null); const [editing, setEditing] = useState<{definition: PresetDefinition; existing?: SavedPreset} | null>(null); const [error, setError] = useState(''); const input = useRef<HTMLInputElement>(null);
   const filtered = presets.filter(p => (category === 'all' || p.definition.category === category) && `${p.definition.name} ${p.definition.description} ${p.definition.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => a.definition.name.localeCompare(b.definition.name));
@@ -21,7 +23,7 @@ export function AssetStudio() {
     <div className="asset-studio__grid">{filtered.map(preset => <PresetCard key={preset.id} preset={preset} onOpen={() => setSelected(preset)}/>)}</div>
     {!filtered.length && <div className="empty-state"><Boxes size={24}/><p>{loaded ? query || category !== 'all' ? 'No matching presets' : 'No saved presets yet' : 'Loading presets…'}</p><span>{query || category !== 'all' ? 'Try another search or category.' : 'Create a preset or ask Codex to generate one.'}</span>{(query || category !== 'all') && <Button variant="ghost" onClick={() => {setQuery(''); setCategory('all');}}>Clear filters</Button>}</div>}
     <p className="library-note">Click to preview and customize, or drag to the timeline. Presets are saved locally and shared across projects.</p>
-    <Button className="asset-studio__codex" icon={<Sparkles size={14}/>} onClick={() => openInspectorPanel('codex')}>Create with Codex</Button>
+    <Button className="asset-studio__codex" icon={<Sparkles size={14}/>} onClick={() => openInspectorPanel('codex')}>Create with {agentName}</Button>
     {selected && <PresetDetailDialog key={`${selected.id}-${selected.version}`} preset={selected} onClose={() => setSelected(null)} onSaved={saved} onEdit={() => {setEditing({definition: selected.definition, existing: selected}); setSelected(null);}}/>}
     {editing && <PresetEditorDialog initial={editing.definition} existing={editing.existing} onClose={() => setEditing(null)} onSaved={saved}/>}
   </section>;

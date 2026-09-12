@@ -29,6 +29,10 @@ See the [feature and MCP tool reference](docs/feature-overview.md) for the full 
 
 ## Run locally
 
+**Quick install:** download and extract the repository ZIP, then open **Install-Windows.cmd** on Windows or run **Install-Linux.sh** in a terminal on Linux. Setup prepares dependencies, builds the editor and opens it in your browser. Next time use **Start-Windows.cmd** or **Start-Linux.sh**. [Installation steps, supported distributions and troubleshooting →](docs/installation.md)
+
+### Manual setup
+
 Install **Node.js 22+** and **FFmpeg with ffprobe** on your PATH. A Chrome/Chromium executable is needed for rendering; set `CHROME_PATH` if necessary, or let Remotion download its compatible browser on the first render.
 
 Clone the repository, then run the same commands on **Windows or Linux**:
@@ -62,6 +66,8 @@ To continue editing elsewhere, use **Export timeline → Prepare XML export → 
 Originals are copied into project media storage. Full-quality playback uses supported originals or an on-demand, full-resolution compatibility copy; **Performance** deliberately selects a smaller playback copy. Export always reads original media. Project and export resolution are separate settings.
 
 Exports support H.264, H.265, AV1, VP8/VP9, and ProRes with compatible containers and audio settings. AMD uses VA-API on Linux and AMF on Windows; NVIDIA uses NVENC. Availability depends on the GPU, driver, and FFmpeg build. GPU compression, sequential source decoding where eligible, reused artwork frames, and bounded worker/buffer settings keep the export pipeline practical without promising real-time rendering on every machine.
+
+Static crop, placement, scaling and canvas gaps use the native export path. Eligible plain cuts keep their frames on the GPU; complex effects use hardware browser rendering when available. Progress identifies CPU filter work separately from GPU encoding. [GPU pipeline, supported stages and remaining limits →](docs/gpu-rendering.md)
 
 Adjust individual clips or finish the whole timeline with exposure, contrast, saturation, temperature, tint, gamma and hue; visual elements also have an opacity control. Codex can apply these adjustments through the same editing tools—see [color grading](docs/color-grading.md).
 
@@ -137,3 +143,11 @@ Automatic Cuts review uses sampled source frames and can miss brief events. Spee
 The service is designed for a trusted local workspace, with one active project shared across connected browsers. Back up the workspace and any separately configured preset library. Media, exports, caches, and local session data are excluded from this source repository. See [project management](docs/projects.md) for storage details.
 
 No project license has been selected yet; dependencies retain their own license terms.
+
+### Optional local AI with Ollama
+
+Use the existing AI panel with an Ollama server on your computer or LAN: select **AI provider → Ollama**, save its URL, load models and start the assistant. Tool calls use the real Framecraft MCP bridge, with approvals, live edits and undo. Vision-capable models can inspect frames. Codex CLI remains available as a separate provider. [Ollama setup and limitations →](docs/ollama.md)
+
+Ollama has compact editing commands, persistent timestamped visual observations, structured project/report results and a **16 GB context preset** with actual GPU allocation shown in the panel. [Pipeline audit and real-model results →](docs/ollama-pipeline.md)
+
+Optional **Workspace access** lets Ollama read/edit code and execute commands on the Framecraft host in the same chat. File writes and commands follow approvals and Auto-allow. Command mode uses your host account permissions and is not sandboxed; file changes are separate from timeline Undo.

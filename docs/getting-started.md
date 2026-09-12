@@ -4,6 +4,8 @@ Detailed setup and editing instructions for Windows and Linux. For an overview, 
 
 ## Install and run
 
+For automated setup, use **Install-Windows.cmd** or **Install-Linux.sh** from an extracted repository. They prepare dependencies and launch the built editor. See the [installer guide](installation.md) for Windows/Linux support, first-run permissions and the generated launchers. The commands below remain available for manual setup.
+
 Install **Node.js 22 or newer** and **FFmpeg**, including `ffprobe`, and make sure both executables are available on your PATH. On Windows, a full FFmpeg build with `libx264` and AAC support is needed; restart your terminal after updating PATH. The same codec requirements apply on Linux.
 
 Clone `https://github.com/Stalkerino/FrameCraft.git` and open its folder in PowerShell, Command Prompt, or a Linux terminal. Then run:

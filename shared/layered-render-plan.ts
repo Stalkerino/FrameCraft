@@ -7,8 +7,9 @@ import {zoomAtFrame} from './clip-animation';
 import {shiftAudioEnvelope, type AudioEnvelope} from './audio-envelope';
 import type {ColorGrade} from './color-grading';
 import {visualProperties} from './visual-editing';
+import {videoPlacement, type VideoPlacement} from './video-placement';
 
-export interface VideoSegment {start: number; duration: number; sourceStart: number; volume: number; audioEnvelope?: AudioEnvelope | null; colorGrade?: ColorGrade | null; projectColorGrade?: ColorGrade | null; opacity?: number; backgroundColor?: string; asset: Asset}
+export interface VideoSegment {start: number; duration: number; sourceStart: number; volume: number; audioEnvelope?: AudioEnvelope | null; colorGrade?: ColorGrade | null; projectColorGrade?: ColorGrade | null; opacity?: number; backgroundColor?: string; asset: Asset | null; placement?: VideoPlacement | null}
 export interface OverlayRun {frame: number; duration: number}
 export interface LayeredRenderPlan {baseTrackId: string; firstFrame: number; lastFrame: number; segments: VideoSegment[]; overlayFrames: number[]; overlayRuns: OverlayRun[]}
 export interface OverlayRenderPass {omitTrackId: string}
@@ -18,7 +19,7 @@ export function exportFrameRange(project: Project, settings: ExportSettings): [n
   return [Math.min(last, Math.floor(settings.startSeconds * settings.fps)), Math.min(last, Math.ceil((settings.endSeconds ?? durationOf(project) / project.fps) * settings.fps) - 1)];
 }
 
-/** The base must be a full-canvas sequence of cuts. All artwork still uses React. */
+/** Native footage and canvas gaps; artwork still uses the shared React composition. */
 export function layeredRenderPlan(project: Project, settings: ExportSettings): LayeredRenderPlan | null {
   if(!['h264', 'h264-mkv', 'h265', 'av1'].includes(settings.codec)) return null;
   if(Math.abs(project.width / project.height - settings.width / settings.height) > 1e-6) return null;
@@ -28,18 +29,19 @@ export function layeredRenderPlan(project: Project, settings: ExportSettings): L
   const [firstFrame, lastFrame] = exportFrameRange(project, settings);
   const intersects = (clip: Clip) => clip.start <= lastFrame && clip.start + clip.duration > firstFrame;
   const segments: VideoSegment[] = [];
+  const gap = (start: number, duration: number): VideoSegment => ({start, duration, sourceStart: 0, volume: 0, asset: null, backgroundColor: project.backgroundColor});
   let cursor = firstFrame;
   for(const clip of trackClips(project, base.id).filter(intersects)) {
     const asset = project.assets.find(asset => asset.id === clip.assetId);
-    if(clip.kind !== 'video' || !asset || !asset.width || !asset.height || clip.x !== 50 || clip.y !== 50 || clip.scale !== 1 || clip.zoom || clip.transition !== 'none' || clip.presetTransition || clip.rotation || clip.crop || clip.mask || visualProperties.some(property => clip.keyframes?.[property]?.length)) return null;
-    if(Math.abs(asset.width / asset.height - project.width / project.height) > 1e-6) return null;
+    if(clip.kind !== 'video' || !asset || !asset.width || !asset.height || clip.zoom || clip.transition !== 'none' || clip.presetTransition || clip.rotation || clip.mask || visualProperties.some(property => clip.keyframes?.[property]?.length)) return null;
     const start = Math.max(firstFrame, clip.start); const end = Math.min(lastFrame + 1, clip.start + clip.duration);
-    if(start !== cursor) return null;
+    if(start < cursor) return null;
+    if(start > cursor) segments.push(gap(cursor, start - cursor));
     segments.push({start, duration: end - start, sourceStart: clip.sourceStart + start - clip.start,
-      volume: base.muted ? 0 : clip.volume * (project.masterVolume ?? 1), ...(clip.audioEnvelope ? {audioEnvelope: shiftAudioEnvelope(clip.audioEnvelope, start - clip.start)} : {}), colorGrade: clip.colorGrade, projectColorGrade: project.colorGrade, opacity: clip.opacity, backgroundColor: project.backgroundColor, asset});
+      volume: base.muted ? 0 : clip.volume * (project.masterVolume ?? 1), ...(clip.audioEnvelope ? {audioEnvelope: shiftAudioEnvelope(clip.audioEnvelope, start - clip.start)} : {}), colorGrade: clip.colorGrade, projectColorGrade: project.colorGrade, opacity: clip.opacity, backgroundColor: project.backgroundColor, asset, placement: videoPlacement(clip, asset, project, settings)});
     cursor = end;
   }
-  if(cursor !== lastFrame + 1) return null;
+  if(cursor <= lastFrame) segments.push(gap(cursor, lastFrame + 1 - cursor));
   const visibleIds = new Set(tracks.filter(track => track.id !== base.id).map(track => track.id));
   const overlays = project.clips.filter(clip => visibleIds.has(clipTrackId(project, clip)));
   // Other videos/audio need the complete compositor and its audio mixer.

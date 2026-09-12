@@ -53,7 +53,7 @@ describe('visual editing', () => {
     const project = makeProject(); project.clips[0].keyframes = null;
     const settings = exportSettingsSchema.parse({width: 320, height: 180, fps: 30, encoder: 'cpu'});
     expect(layeredRenderPlan(project, settings)).not.toBeNull();
-    project.clips[0].crop = cropSchema.parse({left: 20}); expect(layeredRenderPlan(project, settings)).toBeNull();
+    project.clips[0].crop = cropSchema.parse({left: 20}); expect(layeredRenderPlan(project, settings)).not.toBeNull();
     project.clips[0].crop = null;
     project.clips.push(clipSchema.parse({id: 'label', name: 'Label', kind: 'text', track: 'text', start: 0, duration: 90, animation: 'none', keyframes: {x: [{frame: 0, value: 10}, {frame: 89, value: 90}]}}));
     expect(layeredRenderPlan(project, settings)?.overlayFrames.length).toBe(90);

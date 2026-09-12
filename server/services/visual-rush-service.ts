@@ -3,6 +3,7 @@ import {access, mkdir, rm} from 'node:fs/promises';
 import path from 'node:path';
 import type {z} from 'zod';
 import type {Project} from '../../shared/project';
+import {validateVideoCutRanges} from '../../shared/video-cut-validation';
 import {cachedInspection, inspectionCacheKey, inspectionTimes, sourceTimecode, summarizeVisuals, type saveVideoCutSchema, type VideoCut, type VideoInspection, type VideoSheet, type VisualReport} from '../../shared/visual-rush';
 import {VisualRushRepository} from '../repositories/visual-rush-repository';
 import {VideoFrameService} from './video-frame-service';
@@ -51,17 +52,8 @@ export class VisualRushService {
       const existing = input.id ? await this.repository.cut(input.id) : null;
       if(existing && (existing.projectId !== project.id || existing.assetId !== asset.id)) throw new Error('This proposal belongs to another project or source');
       if((existing?.version ?? null) !== input.expectedVersion) throw Object.assign(new Error('The proposal changed. Refresh it before saving.'), {status: 409});
-      const viewed = [...await this.viewed(report)].sort((a, b) => a - b);
-      const wasViewed = (time: number) => {
-        let low = 0; let high = viewed.length;
-        while(low < high) {const middle = Math.floor((low + high) / 2); if(viewed[middle] < time) low = middle + 1; else high = middle;}
-        return Math.abs(viewed[low] - time) < .001 || Math.abs(viewed[low - 1] - time) < .001;
-      };
       if(new Set(input.shots.map(shot => shot.id)).size !== input.shots.length) throw new Error('Each proposed shot needs a unique ID');
-      for(const shot of input.shots) {
-        if(shot.end > asset.duration + .001 || shot.evidence.some(time => time < shot.start || time >= shot.end)) throw new Error('Shots and their evidence must be inside the source range');
-        if(shot.evidence.some(time => !wasViewed(time))) throw new Error('Inspect the cited source frames with inspect_video before saving a cut.');
-      }
+      validateVideoCutRanges(input.shots, asset.duration, [...await this.viewed(report)]);
       const proposal: VideoCut = {id: input.id ?? randomUUID(), version: (existing?.version ?? 0) + 1, projectId: project.id, assetId: asset.id, reportId: report.id, title: input.title, goal: input.goal, shots: input.shots, createdAt: new Date().toISOString()};
       await this.repository.saveCut(proposal); return proposal;
     }); this.queue = task.catch(() => undefined); return task;

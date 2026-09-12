@@ -39,11 +39,11 @@ it('preserves trimmed cut boundaries and caches only identical artwork states', 
   expect(animated.overlayRuns.reduce((total, run) => total + run.duration, 0)).toBe(24);
 });
 
-it('keeps the full renderer for transforms, gaps and additional audio/video', () => {
+it('accepts static transforms and canvas gaps while retaining the full renderer for additional audio/video', () => {
   const {project, settings} = fixture();
   expect(layeredRenderPlan(project, settings)).not.toBeNull();
-  expect(layeredRenderPlan({...project, clips: project.clips.map(clip => ({...clip, scale: 1.2}))}, settings)).toBeNull();
-  expect(layeredRenderPlan({...project, clips: project.clips.slice(1)}, settings)).toBeNull();
+  expect(layeredRenderPlan({...project, clips: project.clips.map(clip => ({...clip, scale: 1.2}))}, settings)).not.toBeNull();
+  expect(layeredRenderPlan({...project, clips: project.clips.slice(1)}, settings)?.segments[0]).toMatchObject({asset: null, start: 0, duration: 12});
   const audio = clipSchema.parse({id: 'music', name: 'Music', kind: 'audio', track: 'audio', assetId: 'video', start: 0, duration: 24});
   expect(layeredRenderPlan({...project, clips: [...project.clips, audio]}, settings)).toBeNull();
 });

@@ -1,4 +1,6 @@
 node_modules/
+.runtime/
+Framecraft.desktop
 dist/
 data/
 .cache/

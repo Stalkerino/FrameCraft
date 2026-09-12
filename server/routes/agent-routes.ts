@@ -1,16 +1,17 @@
 import {Router} from 'express';
 import {createEventStream} from '../http/event-stream';
 import {z} from 'zod';
-import {agentModelSettingsSchema, agentReplySchema} from '../../shared/agent';
-import type {CodexSessionService} from '../services/codex-session-service';
+import {agentProviderSettingsSchema, agentModelSettingsSchema, agentReplySchema} from '../../shared/agent';
+import type {AgentSessionService} from '../services/agent-session-service';
 
-export function agentRoutes(agent: CodexSessionService) {
+export function agentRoutes(agent: AgentSessionService) {
   const router = Router();
   router.get('/events', (req, res, next) => {
     const stream = createEventStream(req, res, next);
     stream.subscribe(agent, (state: unknown) => stream.send(state));
     stream.send(agent.snapshot());
   });
+  router.post('/provider', async (req, res) => res.json(await agent.configureProvider(agentProviderSettingsSchema.parse(req.body))));
   router.post('/start', async (req, res) => {
     const {fresh} = z.object({fresh: z.boolean().default(false)}).strict().parse(req.body);
     res.json(await agent.start(fresh));

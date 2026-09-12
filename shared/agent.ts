@@ -14,7 +14,14 @@ export const agentModelSchema = z.object({
 export type AgentModel = z.infer<typeof agentModelSchema>;
 export const agentModelSettingsSchema = z.object({model: z.string().min(1), effort: z.string().min(1).nullable(), serviceTier: z.string().min(1).nullable()}).strict();
 export type AgentModelSettings = z.infer<typeof agentModelSettingsSchema>;
+export interface AgentOllamaRuntime {
+  model: string; contextLength?: number; totalBytes?: number; vramBytes?: number; cpuBytes?: number;
+  promptTokens?: number; outputTokens?: number; tokensPerSecond?: number;
+  generationMilliseconds?: number; loadMilliseconds?: number; doneReason?: string;
+}
 export interface AgentSession {
+  provider?: 'codex' | 'ollama'; providerSettings?: AgentProviderSettings; vision?: boolean;
+  ollamaRuntime?: AgentOllamaRuntime;
   autoApprove: boolean;
   status: 'idle' | 'starting' | 'ready' | 'working' | 'error';
   threadId: string | null; turnId: string | null; model: string | null; error: string | null;
@@ -33,3 +40,12 @@ export function agentConversationEntries(session: AgentSession): AgentConversati
 }
 export const agentReplySchema = z.object({id: z.string().min(1), decision: z.enum(['accept', 'decline']).optional(), answers: z.record(z.string().max(16_000)).optional()}).strict();
 export type AgentReply = z.infer<typeof agentReplySchema>;
+
+export const agentProviderSettingsSchema = z.object({
+  provider: z.enum(['codex', 'ollama']),
+  ollamaUrl: z.string().trim().url().refine(value => {const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash;}, 'Use an HTTP(S) server URL without credentials or query parameters').default('http://127.0.0.1:11434'),
+  contextLength: z.number().int().min(4096).max(262144).default(32768),
+  workspaceAccess: z.enum(['disabled', 'files', 'commands']).default('disabled'),
+  workspacePath: z.string().trim().max(4096).default(''),
+}).strict();
+export type AgentProviderSettings = z.infer<typeof agentProviderSettingsSchema>;

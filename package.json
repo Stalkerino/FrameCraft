@@ -15,7 +15,9 @@
     "test:e2e": "playwright test",
     "mcp": "node scripts/mcp.mjs",
     "doctor": "node --import tsx scripts/doctor.ts",
-    "docs:screenshots": "node --import tsx scripts/capture-docs.mjs"
+    "docs:screenshots": "node --import tsx scripts/capture-docs.mjs",
+    "setup": "node scripts/install/setup.mjs",
+    "launch": "node scripts/install/launch.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",

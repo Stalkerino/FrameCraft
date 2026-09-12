@@ -1,3 +1,4 @@
+import {useAgentName} from '../../stores/agent-store';
 import {AudioLines, Boxes, Check, Film, FolderPlus, Grid2X2, Layers3, List, LoaderCircle, Search, Sparkles, Type, Upload, WandSparkles, X} from 'lucide-react';
 import {useRef, useState} from 'react';
 import {useEditor} from '../../stores/editor-store';
@@ -22,6 +23,7 @@ const libraryTabs = [
 ] as const;
 
 export function MediaLibrary() {
+  const agentName = useAgentName();
   const tab = useEditor(s => s.libraryTab);
   const snapshot = useEditor(s => s.snapshot);
   const importing = useEditor(s => s.importing);
@@ -47,7 +49,7 @@ export function MediaLibrary() {
   return <aside className={`library-shell ${tab === 'assist' ? 'library-shell--assist' : tab === 'assets' ? 'library-shell--assets' : ''}`} aria-label="Editing tools and library">
     <nav className="tool-rail" aria-label="Editor tools">
       {libraryTabs.map(({id, label, icon: Icon}) => <button key={id} aria-label={label} aria-pressed={tab === id} title={label} className={tab === id ? 'active' : ''} onClick={() => openLibraryPanel(id)}><Icon size={19}/><span>{label}</span></button>)}
-      <button className="tool-rail__agent" title="Open Codex assistant" onClick={() => openInspectorPanel('codex')}><Sparkles size={19}/><span>Codex</span></button>
+      <button className="tool-rail__agent" title={`Open ${agentName} assistant`} onClick={() => openInspectorPanel('codex')}><Sparkles size={19}/><span>{agentName}</span></button>
     </nav>
     {tab === 'assets' ? <AssetStudio/> : tab === 'assist' ? <AssistWorkspace/> : <section className={`library ${dragging ? 'library--drop' : ''}`}
       onDragOver={event => {if(event.dataTransfer.types.includes('Files')) {event.preventDefault(); setDragging(true);}}}
