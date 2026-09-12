@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:gpu": "node scripts/test-gpu.mjs",
     "mcp": "node scripts/mcp.mjs",
     "doctor": "node --import tsx scripts/doctor.ts",
     "docs:screenshots": "node --import tsx scripts/capture-docs.mjs",

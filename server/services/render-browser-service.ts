@@ -6,6 +6,10 @@ import type {HardwareEncoder} from './encoding-arguments';
 
 interface GpuInfo {gpu: {auxAttributes?: {glRenderer?: string}; featureStatus?: Record<string, string>}}
 
+export function renderBrowserGl(platform: NodeJS.Platform, hardware?: HardwareEncoder): 'angle-egl' | 'angle' | 'swangle' {
+  return platform === 'linux' ? hardware ? 'angle-egl' : 'swangle' : 'angle';
+}
+
 export function hardwareBrowserStatus(info: GpuInfo) {
   const renderer = info.gpu.auxAttributes?.glRenderer ?? '';
   const features = info.gpu.featureStatus ?? {};
@@ -23,11 +27,22 @@ export async function openRenderBrowser(hardware?: HardwareEncoder) {
     const pci = path.basename(device);
     if(/^[\da-f]{4}:[\da-f]{2}:[\da-f]{2}\.[\da-f]$/i.test(pci)) process.env.DRI_PRIME = `pci-${pci.replace(/[:.]/g, '_')}`;
   }
-  const chromiumOptions = {gl: hardware ? process.platform === 'linux' ? 'angle-egl' as const : 'angle' as const : 'swangle' as const};
+  // Windows ANGLE can accelerate stills and CPU-encoded formats too. Preserve
+  // the proven software default on Linux hosts without a selected GPU encoder.
+  let chromiumOptions = {gl: renderBrowserGl(process.platform, hardware)};
   let browser: Awaited<ReturnType<typeof remotionRenderer.openBrowser>>;
-  try {browser = await remotionRenderer.openBrowser('chrome', {browserExecutable: browserExecutable(), chromiumOptions, logLevel: 'error'});}
+  let startupWarning: string | undefined;
+  try {
+    try {browser = await remotionRenderer.openBrowser('chrome', {browserExecutable: browserExecutable(), chromiumOptions, logLevel: 'error'});}
+    catch {
+      chromiumOptions = {gl: 'swangle'};
+      startupWarning = 'The hardware browser could not start. Browser effects use software rendering.';
+      browser = await remotionRenderer.openBrowser('chrome', {browserExecutable: browserExecutable(), chromiumOptions, logLevel: 'error'});
+    }
+  }
   finally {if(previousPrime === undefined) delete process.env.DRI_PRIME; else process.env.DRI_PRIME = previousPrime;}
-  if(!hardware) return {browser, chromiumOptions, accelerated: false, label: 'Software browser rendering'};
+  if(chromiumOptions.gl === 'swangle' && !startupWarning) return {browser, chromiumOptions, accelerated: false, label: 'Software browser rendering'};
+  if(startupWarning) return {browser, chromiumOptions, accelerated: false, label: 'Software browser rendering', warning: startupWarning};
   try {
     // Remotion's pinned CDP type subset omits this standard browser command.
     const connection = browser.connection as unknown as {send(method: 'SystemInfo.getInfo'): Promise<{value: GpuInfo}>};
@@ -35,7 +50,7 @@ export async function openRenderBrowser(hardware?: HardwareEncoder) {
     const status = hardwareBrowserStatus(value);
     return {browser, chromiumOptions, accelerated: status.accelerated,
       label: status.accelerated ? `GPU browser rendering · ${status.renderer}` : 'Software browser rendering',
-      warning: status.accelerated ? undefined : 'The browser did not enable hardware compositing and rasterization. Video encoding still uses the selected GPU; browser effects use software rendering.'};
+      warning: status.accelerated ? undefined : 'The browser did not enable hardware compositing and rasterization. Browser effects use software rendering; video encoding uses the selected encoder.'};
   } catch(error) {
     await browser.close({silent: true});
     throw new Error(`Could not verify the export browser GPU: ${(error as Error).message}`);

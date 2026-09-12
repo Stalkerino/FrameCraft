@@ -6,7 +6,7 @@ import type {ExportSettings} from '../../shared/media-settings';
 import {audioVolumeFilter} from '../../shared/audio-envelope';
 import {hardwareEncodingArguments, type HardwareEncoder} from './encoding-arguments';
 import {bundledRenderBinary, resolveExecutable} from './render-binaries-service';
-import {ffmpegPath, ffprobePath, runProcess} from './process-service';
+import {ffmpegPath, ffprobePath, ProcessError, runProcess} from './process-service';
 import {MediaFileRepository} from '../repositories/media-file-repository';
 import {mediaDir} from '../config';
 import type {RenderProgress} from './render-engine';
@@ -16,6 +16,7 @@ import {normalizeArtworkFrames} from './artwork-image-service';
 import {isNeutralColorGrade} from '../../shared/color-grading';
 import {ColorGradeLutService} from './color-grade-lut-service';
 import {nativeVideoFilter} from './native-video-filter';
+import {gpuVideoFilter, supportsCudaGeometry, type GpuVideoFilter} from './gpu-video-filter';
 
 interface SourceInfo {audio: boolean; pixelFormat: string; width: number; height: number; rotation: number; sar: string; passthroughColor: boolean}
 interface HardwareDecoder {input: string[]; filter: string}
@@ -54,6 +55,15 @@ export async function renderLayeredVideo({plan, settings, workspace, output, har
   }
   const total = plan.lastFrame - plan.firstFrame + 1;
   const label = hardware?.label || 'CPU';
+  if(hardware?.backend === 'nvenc' && plan.segments.some(segment => gpuVideoFilter(segment, settings, hardware, filters, !!plan.overlayFrames.length)
+    && !canKeepHardwareFrames(segment, settings, !!plan.overlayFrames.length))) {
+    onProgress({phase: 'Checking CUDA geometry', progress: .09, detail: 'Verifying GPU composition pixels with the installed FFmpeg'});
+    if(!await supportsCudaGeometry(hardware)) {
+      filters.delete('scale_cuda');
+      onProgress({phase: 'Preparing video processing', progress: .09,
+        warning: 'This FFmpeg/driver did not pass the CUDA geometry pixel check. Using native CPU filters with NVIDIA NVENC encoding.'});
+    }
+  }
   let pattern: string | undefined;
   if(plan.overlayFrames.length) {
     const renderOptions = typeof render === 'function' ? await render() : render;
@@ -88,14 +98,37 @@ export async function renderLayeredVideo({plan, settings, workspace, output, har
     const colorFilter = await grading.ensure(segment.colorGrade, segment.projectColorGrade, segment.opacity, segment.backgroundColor);
     const audioSamples = Math.round((encoded + segment.duration) / settings.fps * settings.sampleRate) - Math.round(encoded / settings.fps * settings.sampleRate);
     const maxBufferedFrames = canLimitBuffers ? filterFrameBudget(Math.max(settings.width, source.info.width), Math.max(settings.height, source.info.height)) : undefined;
+    const directFrames = canKeepHardwareFrames(segment, settings, !!overlay, colorFilter);
+    let gpuFilter = source.decoder && hardware && source.info.passthroughColor && !directFrames ? gpuVideoFilter(segment, settings, hardware, filters, !!overlay, colorFilter) : undefined;
+    // D3D11VA surfaces can also feed AMF directly. Validate the entire graph and
+    // selected encoder, not just the existence of a decoder or filter name.
+    let hardwareFrames = !!source.decoder && !!hardware && source.info.passthroughColor
+      && (!!gpuFilter || directFrames);
+    if(hardwareFrames && hardware) {
+      onProgress({phase: 'Checking GPU video processing', progress: .45 + encoded / total * .5,
+        detail: `${gpuFilter?.label ?? 'Direct GPU surfaces'} · clip ${index + 1} / ${plan.segments.length}`});
+      const probeSettings = {...settings, audio: false};
+      const probeFile = path.join(directory, `probe-${index}.nut`);
+      const probe = hardwareEncodingArguments(segmentArguments({segment, settings: probeSettings, source: source.file, hasAudio: false,
+        decoder: source.decoder, overlay, output: probeFile, audioSamples: 0, maxBufferedFrames, colorFilter, hardwareFrames, gpuFilter}), hardware, probeSettings, true);
+      probe[probe.indexOf('-frames:v') + 1] = String(Math.min(3, segment.duration));
+      try {
+        await runProcess(binary, probe, 20000);
+        const info = await inspectSource(probeFile);
+        if(info.width !== settings.width || info.height !== settings.height || !['', '0:1', '1:1'].includes(info.sar)) throw new Error('GPU filters returned an incorrect output size or pixel aspect ratio.');
+      }
+      catch(error) {
+        if(error instanceof ProcessError && error.kind === 'abort') throw error;
+        gpuFilter = undefined; hardwareFrames = false;
+        onProgress({phase: 'Preparing video processing', progress: .45 + encoded / total * .5,
+          warning: `GPU video processing failed its source/driver check. Using CPU filters with ${label} encoding. ${error instanceof Error ? error.message.slice(-500) : String(error)}`});
+      }
+    }
     const encode = async () => {
-      // Same-API decoder surfaces can go straight to VA-API/NVENC. No Vulkan
-      // interop or VA-API video processing is required for ordinary unscaled cuts.
-      const hardwareFrames = !!source.decoder && !!hardware && hardware.backend !== 'amf' && source.info.passthroughColor && canKeepHardwareFrames(segment, settings, !!overlay, colorFilter);
-      const args = segmentArguments({segment, settings, source: source.file, hasAudio: source.info.audio, decoder: source.decoder, overlay, output: part, audioSamples, maxBufferedFrames, colorFilter, hardwareFrames});
+      const args = segmentArguments({segment, settings, source: source.file, hasAudio: source.info.audio, decoder: source.decoder, overlay, output: part, audioSamples, maxBufferedFrames, colorFilter, hardwareFrames, gpuFilter});
       const finalArgs = hardware ? hardwareEncodingArguments(args, hardware, settings, hardwareFrames) : args;
       const decoding = !segment.asset ? 'canvas background' : source.decoder ? 'GPU decoding' : 'CPU decoding';
-      const pipeline = `${label} encoding · ${decoding} · ${hardwareFrames ? 'video frames stay on GPU' : 'native CPU filters'}`;
+      const pipeline = `${label} encoding · ${decoding} · ${hardwareFrames ? `${gpuFilter?.label ?? 'direct GPU surfaces'} · video frames stay on GPU${overlay ? ' · sparse artwork upload' : ''}` : 'native CPU filters'}`;
       onProgress({phase: 'Encoding video', progress: .45 + encoded / total * .5, detail: `${pipeline} · clip ${index + 1} / ${plan.segments.length}`});
       await runEncodingProcess(binary, finalArgs, {onProgress: value => {
         const frames = Math.max(0, Math.min(segment.duration, value.frame));
@@ -104,14 +137,15 @@ export async function renderLayeredVideo({plan, settings, workspace, output, har
     };
     try {await encode();}
     catch(error) {
-      if(!(error instanceof EncodingStalledError) || !source.decoder) throw error;
+      const gpuFailure = hardwareFrames && error instanceof ProcessError && ['exit', 'signal'].includes(error.kind);
+      if((!(error instanceof EncodingStalledError) && !gpuFailure) || !source.decoder) throw error;
       // A one-frame capability probe cannot rule out a decoder hanging at a
       // later seek or EOF. Retry only this unfinished part, after the child has
       // closed; retain the selected GPU encoder and every completed cut.
-      source.decoder = undefined;
+      source.decoder = undefined; hardwareFrames = false; gpuFilter = undefined;
       onProgress({phase: 'Recovering video decoding', progress: .45 + encoded / total * .5,
         detail: `Retrying clip ${index + 1} / ${plan.segments.length}`,
-        warning: `Encoding stopped progressing. Retrying this cut with CPU decoding and ${label} encoding.`});
+        warning: `GPU video processing ${gpuFailure ? 'failed' : 'stopped progressing'}. Retrying this cut with CPU decoding/filtering and ${label} encoding.`});
       await encode();
     }
     encoded += segment.duration;
@@ -126,8 +160,8 @@ export async function renderLayeredVideo({plan, settings, workspace, output, har
   return true;
 }
 
-export function segmentArguments({segment, settings, source, hasAudio, overlay, output, audioSamples, decoder, maxBufferedFrames, colorFilter, hardwareFrames = false}: {
-  segment: VideoSegment; settings: ExportSettings; source: string; hasAudio: boolean; overlay?: string; output: string; audioSamples: number; decoder?: HardwareDecoder; maxBufferedFrames?: number; colorFilter?: string; hardwareFrames?: boolean;
+export function segmentArguments({segment, settings, source, hasAudio, overlay, output, audioSamples, decoder, maxBufferedFrames, colorFilter, hardwareFrames = false, gpuFilter}: {
+  segment: VideoSegment; settings: ExportSettings; source: string; hasAudio: boolean; overlay?: string; output: string; audioSamples: number; decoder?: HardwareDecoder; maxBufferedFrames?: number; colorFilter?: string; hardwareFrames?: boolean; gpuFilter?: GpuVideoFilter;
 }): string[] {
   const duration = segment.duration / settings.fps;
   const args = ['-hide_banner', '-loglevel', 'error', '-nostdin', ...(maxBufferedFrames ? ['-filter_buffered_frames', String(maxBufferedFrames)] : []),
@@ -137,16 +171,18 @@ export function segmentArguments({segment, settings, source, hasAudio, overlay, 
   if(overlay) {args.push('-threads:v', '1', '-f', 'concat', '-safe', '0', '-i', overlay); nextInput++;}
   const audioInput = hasAudio && segment.volume > 0 ? '0:a:0' : `${nextInput}:a:0`;
   if(settings.audio && (!hasAudio || segment.volume === 0)) args.push('-f', 'lavfi', '-i', `anullsrc=r=${settings.sampleRate}:cl=stereo`);
-  const baseFilter = hardwareFrames ? `setpts=PTS-STARTPTS,fps=${settings.fps}:start_time=0,trim=end_frame=${segment.duration},setpts=N/(${settings.fps}*TB)`
+  const baseFilter = hardwareFrames ? `setpts=PTS-STARTPTS,${gpuFilter ? gpuFilter.base + ',' : ''}fps=${settings.fps}:start_time=0,trim=end_frame=${segment.duration},setpts=N/(${settings.fps}*TB)`
     : `${decoder ? decoder.filter + ',' : ''}setpts=PTS-STARTPTS,fps=${settings.fps}:start_time=0,${nativeVideoFilter(segment, settings, colorFilter)},setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=end_frame=${segment.duration},setpts=N/(${settings.fps}*TB)`;
   const filters = [`[0:v:0]${baseFilter}[base]`];
   // Keep artwork sparse. Expanding long holds with fps creates an independently
   // advancing input and can queue gigabytes of base frames waiting for artwork.
   // Overlay framesync holds the latest PNG until its next timestamp; the base
   // already supplies exactly one output frame per project frame.
-  if(overlay) filters.push('[1:v:0]setpts=PTS-STARTPTS,format=rgba[art]', '[base][art]overlay=0:0:format=auto:alpha=straight:repeatlast=1[composed]');
+  if(overlay && gpuFilter?.overlay) filters.push('[1:v:0]setpts=PTS-STARTPTS,scale=in_range=full:out_range=limited:out_color_matrix=bt709,format=yuva420p,hwupload[art]',
+    '[base][art]overlay_cuda=0:0:repeatlast=1[composed]');
+  else if(overlay) filters.push('[1:v:0]setpts=PTS-STARTPTS,format=rgba[art]', '[base][art]overlay=0:0:format=auto:alpha=straight:repeatlast=1[composed]');
   else filters.push('[base]null[composed]');
-  filters.push(hardwareFrames ? '[composed]null[video]' : '[composed]zscale=matrix=709:matrixin=709:range=limited[video]');
+  filters.push(hardwareFrames ? `[composed]${gpuFilter?.finish ?? 'null'}[video]` : '[composed]zscale=matrix=709:matrixin=709:range=limited[video]');
   if(settings.audio) filters.push(`[${audioInput}]asetpts=PTS-STARTPTS,aresample=${settings.sampleRate},${audioVolumeFilter(segment.audioEnvelope, settings.fps, segment.volume)},apad=whole_len=${audioSamples},atrim=end_sample=${audioSamples}[audio]`);
   args.push('-filter_complex_threads', '2', '-filter_complex', filters.join(';'), '-map', '[video]', '-r', String(settings.fps));
   if(settings.audio) args.push('-map', '[audio]', '-c:a', 'pcm_s16le', '-ac', '2', '-ar', String(settings.sampleRate));
@@ -175,7 +211,8 @@ export function canKeepHardwareFrames(segment: VideoSegment, settings: ExportSet
 async function selectHardwareDecoder(binary: string, encoder: HardwareEncoder, file: string, time: number): Promise<HardwareDecoder | undefined> {
   const type = encoder.backend === 'nvenc' ? 'cuda' : encoder.backend === 'vaapi' ? 'vaapi' : 'd3d11va';
   const format = type === 'd3d11va' ? 'd3d11' : type;
-  const decoder = {input: ['-hwaccel', type, '-hwaccel_output_format', format, ...(encoder.device ? ['-hwaccel_device', encoder.device] : [])], filter: 'hwdownload,format=nv12'};
+  const decoder = {input: [...(type === 'cuda' ? ['-init_hw_device', `cuda=framecraft:${encoder.device ?? '0'}`, '-filter_hw_device', 'framecraft'] : []),
+    '-hwaccel', type, '-hwaccel_output_format', format, ...(type === 'cuda' ? ['-hwaccel_device', 'framecraft'] : encoder.device ? ['-hwaccel_device', encoder.device] : [])], filter: 'hwdownload,format=nv12'};
   try {
     // Probe the actual codec/profile at the cut's source position. An unsupported
     // decoder falls back to continuous CPU decoding while retaining GPU encoding.
