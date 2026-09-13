@@ -46,4 +46,7 @@ try {
     if(!ready) throw new Error('The editor backend did not start within 45 seconds.');
   }
   if(!closing) process.stdout.write(JSON.stringify({event: 'ready', url, ownsBackend: !!child}) + '\n');
-} catch(error) {console.error(error.message); process.exitCode = 1; close();}
+} catch(error) {
+  console.error(error.message); process.exitCode = 1;
+  process.stdout.write(JSON.stringify({event: 'error', message: error.message}) + '\n', close);
+}

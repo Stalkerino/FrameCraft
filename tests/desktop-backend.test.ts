@@ -28,9 +28,11 @@ it('attaches only to the matching workspace and leaves its existing server alive
   try {
     expect(await ready(child)).toEqual({event: 'ready', url: `http://127.0.0.1:${port}`, ownsBackend: false});
     await stop(child); expect((await fetch(`http://127.0.0.1:${port}/api/status`)).ok).toBe(true);
-    const wrong = start(port, path.join(data, 'different')); const exited = once(wrong, 'exit'); let message = '';
+    const wrong = start(port, path.join(data, 'different')); const exited = once(wrong, 'exit'); let message = ''; let protocol = '';
     wrong.stderr.on('data', chunk => {message += chunk;});
+    wrong.stdout.on('data', chunk => {protocol += chunk;});
     expect((await exited)[0]).toBe(1); expect(message).toContain('Another Framecraft workspace');
+    expect(JSON.parse(protocol)).toMatchObject({event: 'error', message: expect.stringContaining('Another Framecraft workspace')});
   } finally {await stop(child); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(data, {recursive: true, force: true});}
 });
 

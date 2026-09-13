@@ -2,6 +2,7 @@ import {cp, mkdir, readFile, readdir, rm, writeFile, chmod, access} from 'node:f
 import path from 'node:path';
 import {root, runtime, run, npmCli} from '../install/runtime.mjs';
 import {trimOnnxPlatforms} from './native-payload.mjs';
+import {prepareLinuxLibraries} from './linux-libraries.mjs';
 
 export const releaseDirectory = path.join(runtime, 'release');
 export function releaseVersion(value) {
@@ -45,6 +46,7 @@ export async function stageRelease(version, env) {
   const names = (await readdir(source)).filter(name => process.platform === 'win32' ? /\.dll$/i.test(name) : /\.so\.\d+$/.test(name));
   if(names.length < 4) throw new Error('The native preview runtime is incomplete.');
   for(const name of names) await cp(path.join(source, name), path.join(libraries, name), {dereference: true});
+  if(process.platform === 'linux') await prepareLinuxLibraries(libraries, names, {env});
   const notices = path.join(app, 'notices'); await mkdir(notices);
   await cp(path.join(sdk, 'LICENSE.txt'), path.join(notices, 'FFmpeg-GPL-3.txt'));
   if(process.platform === 'linux') {

@@ -942,6 +942,7 @@ dependencies = [
  "ash",
  "ash-window",
  "cc",
+ "dunce",
  "gdk",
  "glib",
  "gtk",

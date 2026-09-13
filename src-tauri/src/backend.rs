@@ -1,4 +1,4 @@
-use std::{io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, Command, Stdio}, sync::{mpsc, Mutex}, time::Duration};
+use std::{io::{BufRead, BufReader, Read, Seek, SeekFrom, Write}, path::PathBuf, process::{Child, Command, Stdio}, sync::{mpsc, Mutex}, time::Duration};
 use tauri::Manager;
 
 pub struct Backend { pub url: String, child: Mutex<Option<Child>> }
@@ -16,7 +16,9 @@ impl Backend {
             return Err("The installed Framecraft runtime is missing. Reinstall using the complete desktop package.".into());
         }
         let root = if installed {
-            if cfg!(target_os = "linux") { packaged.canonicalize().map_err(|e| e.to_string())? } else { packaged }
+            // Tauri canonicalizes Windows resources to \\?\ paths. Node's ESM
+            // loader and cwd must receive the ordinary DOS/UNC representation.
+            dunce::canonicalize(&packaged).map_err(|e| e.to_string())?
         } else { std::env::var_os("FRAMECRAFT_ROOT").map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned()) };
         let node = if installed { root.join(if cfg!(windows) {"runtime/node.exe"} else {"runtime/node"}) }
@@ -24,10 +26,13 @@ impl Backend {
         let mut command = Command::new(node);
         command.arg(root.join("scripts/desktop-backend.mjs")).current_dir(&root)
             .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit());
+        let mut log_path = None;
         if installed {
             let data = std::env::var_os("FRAMECRAFT_DATA_DIR").map(PathBuf::from)
                 .unwrap_or(app.path().app_data_dir().map_err(|e| e.to_string())?.join("data"));
             std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
+            let data = dunce::canonicalize(data).map_err(|e| e.to_string())?;
+            log_path = Some(data.join("desktop.log"));
             let log = std::fs::OpenOptions::new().create(true).append(true).open(data.join("desktop.log")).map_err(|e| e.to_string())?;
             command.env("FRAMECRAFT_DATA_DIR", &data).stderr(Stdio::from(log));
         }
@@ -38,13 +43,14 @@ impl Backend {
         std::thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                 if let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) {
-                    if value["event"] == "ready" { let _ = tx.send(value["url"].as_str().unwrap_or("").to_owned()); }
+                    if value["event"] == "ready" { let _ = tx.send(Ok(value["url"].as_str().unwrap_or("").to_owned())); }
+                    if value["event"] == "error" { let _ = tx.send(Err(value["message"].as_str().unwrap_or("Backend startup failed").to_owned())); }
                 }
             }
         });
         match rx.recv_timeout(Duration::from_secs(60)) {
-            Ok(url) if url.starts_with("http://127.0.0.1:") => Ok(Self { url, child: Mutex::new(Some(child)) }),
-            _ => {
+            Ok(Ok(url)) if url.starts_with("http://127.0.0.1:") => Ok(Self { url, child: Mutex::new(Some(child)) }),
+            result => {
                 if let Some(mut input) = child.stdin.take() { let _ = writeln!(input, "shutdown"); }
                 for _ in 0..60 {
                     if child.try_wait().ok().flatten().is_some() { break; }
@@ -52,7 +58,16 @@ impl Backend {
                 }
                 let _ = child.kill();
                 let _ = child.wait();
-                Err("Backend startup failed. See the desktop launcher output; no second workspace was opened.".into())
+                let reason = match result { Ok(Err(message)) => message, other => format!("Backend readiness failed: {other:?}") };
+                let mut tail = String::new();
+                if let Some(file) = log_path.as_ref().and_then(|p| std::fs::File::open(p).ok()) {
+                    let mut file = file;
+                    let size = file.metadata().map(|m| m.len()).unwrap_or(0);
+                    let _ = file.seek(SeekFrom::Start(size.saturating_sub(8192)));
+                    let mut bytes = Vec::new(); let _ = file.read_to_end(&mut bytes);
+                    tail = String::from_utf8_lossy(&bytes).into_owned();
+                }
+                Err(format!("{reason}\nNode: {}\nWorkspace: {}\n{tail}", command.get_program().to_string_lossy(), root.display()))
             }
         }
     }

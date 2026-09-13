@@ -2,7 +2,7 @@ import {cp, mkdir, readdir, readFile, writeFile, rm} from 'node:fs/promises';
 import {createWriteStream} from 'node:fs';
 import {finished} from 'node:stream/promises';
 import path from 'node:path';
-import {root, runtime, run, npmCli, readConfig} from '../install/runtime.mjs';
+import {root, runtime, run, npmCli, readConfig, findExecutable} from '../install/runtime.mjs';
 import {desktopBuildEnvironment, checkDesktopPrerequisites, prepareDesktopDependencies} from '../build/desktop-environment.mjs';
 import {releaseDirectory, releaseVersion, stageRelease} from './stage.mjs';
 import {framecraftAt} from '../install/editor-presence.mjs';
@@ -13,6 +13,7 @@ const version = releaseVersion(process.env.FRAMECRAFT_RELEASE_VERSION || JSON.pa
 await mkdir(runtime, {recursive: true});
 let env = desktopBuildEnvironment(await readConfig().catch(() => ({})));
 const target = await checkDesktopPrerequisites(env);
+if(process.platform === 'linux' && !findExecutable('patchelf', env)) throw new Error('Linux release packaging requires patchelf. Install it with your distribution package manager.');
 if(await framecraftAt(`http://127.0.0.1:${env.PORT || 4318}`)) throw new Error('Close Framecraft before packaging this checkout; dependencies must not be replaced while editing.');
 env = {...await prepareDesktopDependencies(env), FRAMECRAFT_RELEASE_BUILD: '1'};
 await run(process.execPath, [await npmCli(), 'run', 'build'], {env});

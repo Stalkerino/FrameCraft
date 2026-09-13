@@ -12,6 +12,7 @@ cc = "1"
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+dunce = "1.0.5"
 ash = "0.38"
 ash-window = "0.13"
 raw-window-handle = "0.6"

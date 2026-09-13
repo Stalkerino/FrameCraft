@@ -95,6 +95,7 @@ try {
     return content ? `${label}:\n${content.slice(-100000)}` : '';
   }));
   await writeFile(path.join(releaseDirectory, 'smoke.log'), [error.stack || String(error), ...logs].join('\n'));
+  for(const log of logs) if(log) console.error(log);
   console.error(`Release smoke failed; temporary files: ${scratch}`);
   throw error;
 }
