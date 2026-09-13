@@ -1,0 +1,30 @@
+{
+  "identifier": "editor",
+  "description": "Local editor, native monitor, completed export opening and integrated window controls; no arbitrary shell or filesystem frontend access.",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*/*"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "allow-desktop-info",
+    "allow-surface-open",
+    "allow-surface-resize",
+    "allow-surface-frame",
+    "allow-surface-close",
+    "allow-surface-check-finished",
+    "allow-open-render-output",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "core:window:allow-is-maximized",
+    "core:window:allow-is-fullscreen"
+  ]
+}

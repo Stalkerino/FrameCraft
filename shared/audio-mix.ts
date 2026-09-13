@@ -8,11 +8,11 @@ export function audioDuckCommands(project: Project, input: z.infer<typeof audioD
   const body = audioDuckSchema.parse(input); const tracks = projectTracks(project);
   if(new Set(body.targetClipIds).size !== body.targetClipIds.length) throw new Error('Choose each target clip once.');
   for(const id of body.triggerTrackIds) if(!tracks.some(track => track.id === id && ['audio', 'visual'].includes(track.type))) throw new Error('Choose existing video/audio tracks to trigger ducking.');
-  const audible = project.clips.filter(clip => ['audio', 'video'].includes(clip.kind) && clip.volume > 0 && !body.targetClipIds.includes(clip.id)
+  const audible = project.clips.filter(clip => ['audio', 'video', 'sequence'].includes(clip.kind) && clip.volume > 0 && !body.targetClipIds.includes(clip.id)
     && body.triggerTrackIds.includes(clipTrackId(project, clip)) && !tracks.find(track => track.id === clipTrackId(project, clip))?.muted);
   return body.targetClipIds.map(id => {
     const clip = project.clips.find(item => item.id === id);
-    if(!clip || !['audio', 'video'].includes(clip.kind)) throw new Error('Select audio/video clips to lower.');
+    if(!clip || !['audio', 'video', 'sequence'].includes(clip.kind)) throw new Error('Select audio/video clips to lower.');
     const ranges = audible.map(trigger => ({start: trigger.start - clip.start, end: trigger.start + trigger.duration - clip.start}))
       .filter(range => range.start - body.attackFrames < clip.duration && range.end + body.releaseFrames > 0);
     if(!ranges.length) throw new Error(`No foreground clips overlap ${clip.name}. Choose a track containing the voice or action audio.`);

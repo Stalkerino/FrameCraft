@@ -2,13 +2,13 @@ import {useEffect, type CSSProperties} from 'react';
 import {AbsoluteFill, Html5Video, OffthreadVideo, useBufferState, useRemotionEnvironment, useVideoConfig} from 'remotion';
 import {usePreviewMediaRecovery} from '../../hooks/usePreviewMediaRecovery';
 
-interface Props {clipId: string; src: string; sourceStart: number; volume: number | ((frame: number) => number); muted: boolean; style: CSSProperties; onUnsupportedSource?: () => void}
+interface Props {clipId: string; src: string; sourceStart: number; volume: number | ((frame: number) => number); muted: boolean; style: CSSProperties; onUnsupportedSource?: () => void; onVideoFrame?: (frame: CanvasImageSource) => void}
 export function TimelineVideo(props: Props) {
   const {isPlayer} = useRemotionEnvironment();
-  return isPlayer ? <PreviewVideo key={props.src} {...props}/> : <OffthreadVideo data-preview-clip={props.clipId} src={props.src} trimBefore={props.sourceStart} volume={props.volume} muted={props.muted} style={props.style}/>;
+  return isPlayer ? <PreviewVideo key={props.src} {...props}/> : <OffthreadVideo data-preview-clip={props.clipId} src={props.src} trimBefore={props.sourceStart} volume={props.volume} muted={props.muted} style={props.style} onVideoFrame={props.onVideoFrame}/>;
 }
 
-function PreviewVideo({clipId, src, sourceStart, volume, muted, style, onUnsupportedSource}: Props) {
+function PreviewVideo({clipId, src, sourceStart, volume, muted, style, onUnsupportedSource, onVideoFrame}: Props) {
   const recovery = usePreviewMediaRecovery();
   const {width} = useVideoConfig();
   const buffer = useBufferState();
@@ -22,6 +22,6 @@ function PreviewVideo({clipId, src, sourceStart, volume, muted, style, onUnsuppo
     {!recovery.recovering && <button type="button" onClick={recovery.retry} style={{font: 'inherit', padding: '.4em .8em'}}>Retry video</button>}
   </AbsoluteFill>;
   return <Html5Video key={recovery.attempt} ref={recovery.media} data-preview-clip={clipId} src={src} trimBefore={sourceStart} volume={volume} muted={muted} style={style}
-    pauseWhenBuffering onError={error => {if([3, 4].includes(recovery.media.current?.error?.code ?? 0)) onUnsupportedSource?.(); recovery.failed(error);}} onLoadStart={recovery.stalled} onWaiting={recovery.stalled} onStalled={recovery.stalled}
+    onVideoFrame={onVideoFrame} pauseWhenBuffering onError={error => {if([3, 4].includes(recovery.media.current?.error?.code ?? 0)) onUnsupportedSource?.(); recovery.failed(error);}} onLoadStart={recovery.stalled} onWaiting={recovery.stalled} onStalled={recovery.stalled}
     onSeeking={recovery.stalled} onSeeked={recovery.ready} onLoadedData={recovery.ready} onCanPlay={recovery.ready} onPlaying={recovery.ready}/>;
 }

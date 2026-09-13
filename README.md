@@ -48,6 +48,22 @@ npm start
 
 Open **http://127.0.0.1:4318**. For frontend development, use `npm run dev` and open **http://127.0.0.1:5173** instead.
 
+### Desktop development app — native GPU preview
+
+**Build and try on Windows/Linux x64:** install Node.js 22+ with npm, Rust, and the [Tauri build prerequisites](https://v2.tauri.app/start/prerequisites/) once. Windows needs the MSVC Rust toolchain, Visual Studio C++ Build Tools/Windows SDK and WebView2; Linux needs a C/C++ toolchain, pkg-config, GTK 3 and WebKitGTK 4.1 development packages.
+
+Run **Build-Windows.cmd** or **`sh Build-Linux.sh`**. Both call the same script, also available as **`npm run desktop:build`**. It installs locked npm dependencies when changed, downloads the pinned media SDK/headers and compatibility browser, builds the UI and optimized native executable, and prints its location. Build separately on each OS; this does not cross-compile. It uses one compiler job and disables release LTO by default to limit build pressure. It never runs GPU probes or tests.
+
+Then use **Start-Desktop-Windows.cmd**, **`sh Start-Desktop-Linux.sh`**, or **`npm run desktop:start`**. Keep the checkout, `node_modules` and `.runtime`: these are local test builds, not standalone installers. `npm run desktop:build -- --launch` starts after building; `--debug` builds faster without release optimization; `--check` only checks build prerequisites. Build output is recorded in `.runtime/desktop-build.json`, with compiler output in `.runtime/desktop-build.log`. Close the editor before rebuilding. Native build prerequisites and graphics drivers are not installed automatically.
+
+The Tauri 2 desktop app reuses the React/SCSS editor and the same Node backend, MCP tools, Codex/Ollama integration and asset library. Install Rust and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/) (Windows: MSVC build tools and WebView2; Linux: GTK 3 and WebKitGTK 4.1 development libraries), run `npm run desktop:setup` once for the pinned FFmpeg media libraries and Vulkan headers, then `npm run desktop:dev`. It starts the local backend, or attaches to an existing server for this checkout and data directory. Closing the app stops only the backend it started.
+
+Open **Desktop · native monitor → Use native GPU preview** and select AMD or NVIDIA. Original video is decoded with Vulkan Video, composed with the export planner/shaders (including native-supported text, presets, grading, transforms and masks), then presented directly from its GPU image. One persistent device and the current scene's decoders are retained during playback; seeks replace the scene when necessary. No video pixels cross JavaScript, and no intermediate video is encoded. Unsupported native scenes fail explicitly. Audio and its existing transport/envelopes still run in the webview; demux, control and font layout use CPU, and still images are prepared once per source.
+
+Use **Use compatible preview** for canvas selection handles and safe-area guides, which are not yet layered above the native surface. Native presentation runs on a worker, keeps one pending frame request, applies export memory admission/graph queue limits, and releases GPU resources before its child window. `npm run desktop:build` produces a source-checkout executable, **not a standalone installer**; Node and the checkout remain required. Windows builds copy the matching media DLLs beside the executable.
+
+The bounded check (`npm run desktop:check -- amd --run --video`, after a debug build) passed Vulkan decoding, composition with a title, cut crossing, backward seek, resize and shutdown at 320×180 on AMD RX 9070 XT/Linux Wayland. This is functional validation, not a long-timeline performance benchmark. Linux X11, NVIDIA/Linux and both Windows GPU vendors have adapters but still require hardware validation.
+
 The editor works without Codex. To use the embedded agent, install Codex CLI, sign in with `codex login`, then open **AI edit → Start Codex**. Framecraft configures its MCP bridge for that process automatically. Your installed CLI handles model access and authentication; Framecraft requires no separate OpenAI API key.
 
 [Windows setup, Linux setup, environment variables, GPU drivers, and troubleshooting →](docs/getting-started.md)
@@ -68,6 +84,8 @@ Originals are copied into project media storage. Full-quality playback uses supp
 Exports support H.264, H.265, AV1, VP8/VP9, and ProRes with compatible containers and audio settings. AMD uses VA-API on Linux and AMF on Windows; NVIDIA uses NVENC. Availability depends on the GPU, driver, and FFmpeg build. GPU compression, sequential source decoding where eligible, reused artwork frames, and bounded worker/buffer settings keep the export pipeline practical without promising real-time rendering on every machine.
 
 Static crop, placement, scaling and canvas gaps use the native export path. Eligible plain cuts keep their frames on the GPU; complex effects use hardware browser rendering when available. Progress identifies CPU filter work separately from GPU encoding. [GPU pipeline, supported stages and remaining limits →](docs/gpu-rendering.md)
+
+**Experimental native GPU engines:** Export → Render engine offers **Native GPU · cuts & scaling** for full-canvas SDR cuts, and **Native GPU · Vulkan composition** for simultaneous videos/images, static crop/placement/scaling, opacity, color grading and canvas gaps. Both require GPU video processing without CPU/browser fallback and report unsupported effects before export. Fixed images are prepared once on CPU, then reused as GPU textures. The bounded composition/effects checks passed on AMD/Linux RX 9070 XT; broader validation and Windows/NVIDIA checks remain pending. Existing projects keep the compatible renderer and their assets. MCP selects the same engines through `get_render_plan` / `export_video`. See the [requirements and bounded hardware check](docs/gpu-rendering.md).
 
 Adjust individual clips or finish the whole timeline with exposure, contrast, saturation, temperature, tint, gamma and hue; visual elements also have an opacity control. Codex can apply these adjustments through the same editing tools—see [color grading](docs/color-grading.md).
 
@@ -127,7 +145,7 @@ On Windows, use a path such as `C:\Projects\Framecraft\scripts\mcp.mjs`. Registr
 - **Reusable services:** project storage, media import, preview, rendering, analysis, and Codex process management behind HTTP/MCP adapters.
 - **Atomic interface:** atoms → molecules → organisms → templates → pages; typed clients, hooks, and Zustand stores.
 - **SCSS 7–1:** abstracts, base, components, layout, pages, themes, and vendors through one `main.scss` entry point.
-- **Shared rendering:** the same Remotion composition and deterministic animation rules drive preview, inspections, and export.
+- **Shared rendering:** the Remotion composition drives preview, inspections and compatible export. Native GPU exports share project timing, placement and audio-envelope semantics. Static video composition is implemented experimentally; GPU assets, remaining effects and native preview are subsequent increments.
 - **Cross-platform processes:** Node APIs and executable argument arrays for Windows and Linux. CI covers both platforms; local runtime validation has been on Linux.
 
 [Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md) · [Custom effects](docs/custom-effects.md)
@@ -143,6 +161,12 @@ Automatic Cuts review uses sampled source frames and can miss brief events. Spee
 The service is designed for a trusted local workspace, with one active project shared across connected browsers. Back up the workspace and any separately configured preset library. Media, exports, caches, and local session data are excluded from this source repository. See [project management](docs/projects.md) for storage details.
 
 No project license has been selected yet; dependencies retain their own license terms.
+
+### Other CLI assistants
+
+In the AI panel, open **Settings → AI provider** to choose **Claude Code (ACP adapter)**, **Gemini CLI**, **OpenCode**, or a **custom ACP CLI**. Install and sign in to the chosen agent first; each preset includes its setup instructions. Configure an executable path, argument array and working folder, save, then press **Start** in Chat. Windows npm shims for the presets are resolved to their package entry point without a shell.
+
+The same chat shows streamed replies, tool activity, approvals and the model/mode options exposed by the agent. Framecraft passes its complete MCP bridge at session creation, including editing and reusable asset tools. Native file/command operations remain the CLI’s responsibility. Custom agents must support **ACP over stdio**, not only MCP. Claude requires the [Claude ACP adapter](https://github.com/agentclientprotocol/claude-agent-acp); [Gemini](https://geminicli.com/docs/cli/acp-mode/) and [OpenCode](https://opencode.ai/docs/acp/) have native ACP modes. Browser reloads preserve the running chat; a Framecraft restart starts a new chat for these providers. Codex and Ollama retain their existing integrations.
 
 ### Optional local AI with Ollama
 

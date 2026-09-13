@@ -3,6 +3,11 @@ import {assetSchema} from '../shared/project';
 import {playbackSource} from '../src/services/preview-quality';
 
 describe('preview quality source selection', () => {
+  it('keeps a supported original playable while its background proxy is being prepared', () => {
+    const asset = assetSchema.parse({id: 'rush', name: 'Rush', kind: 'video', src: '/media/rush.mp4', duration: 20, width: 3840, height: 2160, videoCodec: 'h264'});
+    expect(playbackSource(asset, 'performance', {}, {})).toMatchObject({src: asset.src, mode: 'performance', status: 'idle', fallback: true});
+    expect(playbackSource(asset, 'performance', {}, {rush: true})).toMatchObject({src: undefined});
+  });
   it('plays supported originals without waiting for or using a proxy', () => {
     const asset = assetSchema.parse({id: 'native', name: 'Gameplay', kind: 'video', src: '/media/gameplay.mp4', duration: 20, width: 3840, height: 2160, videoCodec: 'h264'});
     expect(playbackSource(asset, 'high', {}, {})).toMatchObject({src: asset.src, mode: 'original', width: 3840, height: 2160, status: 'ready'});

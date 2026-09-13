@@ -1,3 +1,4 @@
+import {markersInWindows, type TimelineMarker} from './project-organization';
 import {z} from 'zod';
 import type {Clip, Project} from './project';
 import {clipTrackId, projectTracks} from './tracks';
@@ -13,6 +14,7 @@ export type TimelineRangeEdit = z.infer<typeof timelineRangeEditSchema>;
 export type TimelineRange = TimelineRangeEdit['ranges'][number];
 export interface TimelineRangeEditResult {
   clips: Clip[];
+  markers?: TimelineMarker[];
   affectedClipCount: number;
   beforeDuration: number;
   afterDuration: number;
@@ -77,7 +79,8 @@ export function editTimelineRanges(project: Project, input: TimelineRangeEdit): 
   if(selected.size !== trackIds.length) throw new Error('Choose each timeline track only once');
   if(trackIds.some(id => !tracks.some(track => track.id === id))) throw new Error('Choose existing timeline tracks');
   const ranges = request.operation === 'remove' ? mergedRanges(request.ranges) : request.ranges.map(range => ({...range}));
-  const windows = selectedWindows(request.operation, ranges, beforeDuration);
+  const markerEnd = Math.max(beforeDuration, ...(project.markers ?? []).map(m => (m.end ?? m.frame) + 1));
+  const windows = selectedWindows(request.operation, ranges, request.operation === 'remove' ? markerEnd : beforeDuration);
   const occupiedIds = new Set(project.clips.map(clip => clip.id));
   const nextSuffix = new Map<string, number>();
   const nextId = (original: string) => {
@@ -102,7 +105,8 @@ export function editTimelineRanges(project: Project, input: TimelineRangeEdit): 
         start: window.outputStart + start - window.start, duration: end - start};
       if(offset) {
         clip.audioEnvelope = shiftAudioEnvelope(clip.audioEnvelope, offset);
-        if(clip.kind === 'video' || clip.kind === 'audio' || clip.caption) clip.sourceStart += offset;
+        clip.audioDucking = shiftAudioEnvelope(clip.audioDucking, offset);
+        if(clip.kind === 'video' || clip.kind === 'audio' || clip.kind === 'sequence' || clip.caption) clip.sourceStart += offset;
         clip.motionOffset = (clip.motionOffset ?? 0) + offset;
         clip.transition = 'none'; clip.presetTransition = null;
       }
@@ -136,5 +140,5 @@ export function editTimelineRanges(project: Project, input: TimelineRangeEdit): 
       }
     }
   }
-  return {clips, affectedClipCount: affected.size, beforeDuration, afterDuration: duration(clips, project.fps), ranges, trackIds: [...trackIds], warnings: [...warnings]};
+  return {clips, ...(project.markers ? {markers: selected.size === tracks.length ? markersInWindows(project.markers, windows, request.operation === 'assemble') : structuredClone(project.markers)} : {}), affectedClipCount: affected.size, beforeDuration, afterDuration: duration(clips, project.fps), ranges, trackIds: [...trackIds], warnings: [...warnings]};
 }

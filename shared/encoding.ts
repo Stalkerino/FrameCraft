@@ -11,5 +11,7 @@ export interface EncoderAvailability {
 }
 export interface EncoderCapabilities {
   codec: ExportSettings['codec'];
+  /** Inventory only. Reading capabilities never initializes a GPU. */
+  verification: 'not-run';
   encoders: EncoderAvailability[];
 }

@@ -72,7 +72,8 @@ export class AudioEffectsService {
         processed.push(clip.kind === 'audio' ? {...clip, assetId: imported.id, sourceStart: 0} : clipSchema.parse({
           id: randomUUID(), name: `${clip.name.slice(0, 210)} · processed audio`, kind: 'audio', assetId: imported.id,
           track: 'audio', trackId: track!.id, start: clip.start, duration: clip.duration, sourceStart: 0,
-          volume: clip.volume, audioEnvelope: clip.audioEnvelope,
+          linkId: clip.linkId || randomUUID(), groupId: clip.groupId,
+          volume: clip.volume, audioEnvelope: clip.audioEnvelope, audioDucking: clip.audioDucking,
         }));
         job.progress = (index + 1) / clips.length * .95;
       }
@@ -80,7 +81,7 @@ export class AudioEffectsService {
       commands.push(...assets.map(asset => ({type: 'asset.add' as const, asset})));
       const replacements = new Map(clips.map((clip, index) => [clip.id, processed[index]]));
       commands.push({type: 'clips.replace', clips: [...project.clips.map(clip => replacements.has(clip.id)
-        ? clip.kind === 'video' ? {...clip, volume: 0, audioEnvelope: undefined} : replacements.get(clip.id)!
+        ? clip.kind === 'video' ? {...clip, volume: 0, audioEnvelope: undefined, audioDucking: undefined, linkId: replacements.get(clip.id)!.linkId} : replacements.get(clip.id)!
         : clip), ...processed.filter((_, index) => clips[index].kind === 'video')]});
       const snapshot = await this.projects.execute(commands, project.revision, source, 'Applied audio EQ, dynamics and room effects');
       job.status = 'done'; job.progress = 1; job.revision = snapshot.project.revision; job.clipIds = processed.map(clip => clip.id);

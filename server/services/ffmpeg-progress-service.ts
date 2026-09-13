@@ -2,9 +2,11 @@ import {ProcessError, runProcess} from './process-service';
 
 export interface EncodingProgress {frame: number; outTimeUs: number; totalSize: number}
 export interface EncodingProcessOptions {
+  signal?: AbortSignal;
   onProgress?: (progress: EncodingProgress) => void;
   initialProgressTimeoutMs?: number;
   stalledProgressTimeoutMs?: number;
+  onDiagnostic?: (chunk: string) => void;
 }
 
 export class EncodingStalledError extends Error {
@@ -19,6 +21,9 @@ export async function runEncodingProcess(binary: string, args: string[], options
   const initialTimeout = options.initialProgressTimeoutMs ?? 45_000;
   const progressTimeout = options.stalledProgressTimeoutMs ?? 30_000;
   const controller = new AbortController();
+  const cancel = () => controller.abort(options.signal?.reason);
+  options.signal?.addEventListener('abort', cancel, {once: true});
+  if(options.signal?.aborted) cancel();
   const stallReason = new Error('Encoder progress stalled');
   let timeoutMs = initialTimeout;
   let lastProgress: EncodingProgress = {frame: 0, outTimeUs: 0, totalSize: 0};
@@ -46,7 +51,7 @@ export async function runEncodingProcess(binary: string, args: string[], options
     hasOutTimeUs = false;
   };
   try {
-    await runProcess(binary, args, 24 * 60 * 60_000, {signal: controller.signal, onOutput: chunk => {
+    await runProcess(binary, args, 24 * 60 * 60_000, {signal: controller.signal, onDiagnostic: options.onDiagnostic, onOutput: chunk => {
       const lines = (pending + chunk.toString()).split(/\r?\n/);
       // FFmpeg progress lines are short. Never retain arbitrary output between reads.
       pending = (lines.pop() ?? '').slice(-4096);
@@ -71,5 +76,5 @@ export async function runEncodingProcess(binary: string, args: string[], options
       throw new EncodingStalledError(lastProgress, timeoutMs, error);
     }
     throw error;
-  } finally {clearTimeout(timer);}
+  } finally {clearTimeout(timer); options.signal?.removeEventListener('abort', cancel);}
 }

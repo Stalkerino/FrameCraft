@@ -1,3 +1,4 @@
+import {sequenceAssets} from '../../shared/project-sequences';
 import {randomUUID} from 'node:crypto';
 import {mkdir, writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -21,7 +22,7 @@ export class TimelineExportService {
     const body = timelineExportSchema.parse(input); const project = this.projects.snapshot().project;
     if(body.revision !== project.revision) throw Object.assign(new Error('The timeline changed. Reopen Export timeline to export the current edit.'), {status: 409});
     interchangeRate(project.fps);
-    const used = new Set(project.clips.map(clip => clip.assetId).filter(Boolean)); const media: InterchangeMedia[] = []; const variable: string[] = [];
+    const used = new Set(sequenceAssets(project).map(asset => asset.id)); const media: InterchangeMedia[] = []; const variable: string[] = [];
     // Probe each unique source sequentially, with an immutable-media cache. No video decoding/encoding.
     for(const asset of project.assets.filter(asset => used.has(asset.id))) {
       if(asset.kind === 'image' && !/\.(png|jpe?g|webp)$/i.test(asset.src)) continue;

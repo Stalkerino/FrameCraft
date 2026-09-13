@@ -1,0 +1,15 @@
+.editorial-tools {select {width: 104px; font-size: 10px;} button {font-size: 10px; padding: 4px; white-space: nowrap;}}
+.editorial-tools__menu {position: relative; font-size: 10px; summary {cursor: pointer; padding: 4px;}
+  > div {position: absolute; bottom: calc(100% + 6px); right: 0; min-width: 185px; z-index: 40; padding: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel-raised); box-shadow: 0 4px 18px #0008;
+    button {width: 100%; display: flex; justify-content: space-between; text-align: left; padding: 7px; &:hover:not(:disabled) {background: var(--accent-soft);}} kbd {color: var(--muted); font-size: 9px;}
+  }
+}
+.timeline-tools {flex-wrap: wrap;}
+.source-edit-controls {display: flex; align-items: end; flex-wrap: wrap; gap: 6px; .field {width: 135px;} > button {font-size: 11px;}}
+.audio-meters {display: flex; align-items: center; gap: 5px; padding: 2px 10px; font-size: 10px;
+  > button {color: var(--muted-strong); font-size: 10px; padding: 2px 4px; &[aria-pressed=true] {color: var(--accent);}}
+  &__channel {width: 65px; height: 5px; background: var(--bg); border-radius: 2px; overflow: hidden;
+    i {display: block; height: 100%; background: var(--accent); transition: width 50ms linear;}
+    &.clipping i {background: #ff625f;}
+  }
+}

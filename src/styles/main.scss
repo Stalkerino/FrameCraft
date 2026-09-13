@@ -20,7 +20,11 @@
 @use 'components/preview-recovery';
 @use 'components/settings';
 @use 'components/encoder-settings';
+@use 'components/render-plan';
+@use 'components/desktop-monitor';
 @use 'components/projects';
+@use 'components/project-care';
+@use 'components/organization';
 @use 'components/asset-studio';
 @use 'components/sound-library';
 @use 'components/speed-properties';
@@ -28,3 +32,17 @@
 @use 'pages/studio';
 
 @use 'components/agent-provider';
+@use 'components/select';
+@use 'components/window-controls';
+@use 'components/audio-waveform';
+@use 'components/editorial-tools';
+
+@use 'components/sequences';
+
+@use './components/animation-editor';
+
+@use "components/color-workspace";
+
+@use 'components/audio-mixer';
+
+@use 'components/auto-audio';

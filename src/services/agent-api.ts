@@ -15,6 +15,7 @@ export const agentApi = {
   autoApprove: (enabled: boolean) => request('auto-approve', {enabled}),
   refreshModels: () => request('models/refresh'),
   configure: (settings: AgentModelSettings) => request('settings', settings),
+  configureOption: (id: string, value: string) => request('cli-option', {id, value}),
   subscribe(onState: (state: AgentSession) => void, onDisconnect: () => void) {
     return subscribeWorkspace('agent', onState, onDisconnect);
   },

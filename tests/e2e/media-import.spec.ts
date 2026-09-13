@@ -59,6 +59,8 @@ test('imports into project storage, keeps a long timeline on screen, and prepare
     expect(exportResponse.ok()).toBe(true); const exported = await exportResponse.json();
     await expect.poll(async () => (await (await request.get(`/api/render/${exported.id}`)).json()).status, {timeout: 60000}).toMatch(/done|error/);
     const finished = await (await request.get(`/api/render/${exported.id}`)).json(); expect(finished.status, finished.error).toBe('done');
+    expect(finished.outputPath).toMatch(/[\\/]projects[\\/][a-f0-9]{64}[\\/]exported[\\/].+\.mp4$/);
+    expect((await (await request.get(`/api/render/${exported.id}/output`)).json()).path).toBe(finished.outputPath);
     expect((await request.get(finished.url)).ok()).toBe(true);
     const status = await (await request.get('/api/status')).json();
     await expect.poll(() => readdir(path.join(path.dirname(status.projectPath), 'render-cache'))).toEqual([]);

@@ -25,7 +25,7 @@ async function filterFileArguments(file: string, binary = ffmpegPath()) {
 function resizedClip(clip: Clip, duration: number): Clip {
   const ratio = duration / clip.duration;
   return {...clip, duration, motionOffset: clip.motionOffset === undefined ? undefined : Math.round(clip.motionOffset * ratio),
-    audioEnvelope: reframeAudioEnvelope(clip.audioEnvelope, ratio),
+    audioEnvelope: reframeAudioEnvelope(clip.audioEnvelope, ratio), audioDucking: reframeAudioEnvelope(clip.audioDucking, ratio),
     keyframes: clip.keyframes ? reframeVisualKeyframes(clip.keyframes, ratio) : clip.keyframes,
     zoom: clip.zoom ? {...clip.zoom, start: Math.round(clip.zoom.start * ratio), end: Math.max(Math.round(clip.zoom.start * ratio) + 1, Math.round(clip.zoom.end * ratio))} : clip.zoom,
     transitionFrames: Math.max(1, Math.min(duration, Math.round(clip.transitionFrames * ratio))),

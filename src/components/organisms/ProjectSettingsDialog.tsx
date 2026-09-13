@@ -1,3 +1,4 @@
+import {activeSequenceName} from '../../../shared/project-sequences';
 import {useState} from 'react';
 import {canvasSettingsSchema} from '../../../shared/media-settings';
 import type {Command, Project} from '../../../shared/project';
@@ -25,7 +26,7 @@ export function ProjectSettingsDialog({project, onClose}: {project: Project; onC
     if(gradeChanged) commands.push({type: 'project.color-grade', grade});
     void useEditor.getState().execute(commands, 'Changed project settings', original.revision).then(ok => {if(ok) onClose();});
   }}>
-    <SettingsSection title="Canvas & timing" description="Set the working resolution and frame rate for this timeline.">
+    <SettingsSection title="Canvas & timing" description={`Editing sequence: ${activeSequenceName(project)}. Other sequences keep their settings.`}>
       <SourceMatchControl project={original} value={settings} showProject={false} onChange={patch => setSettings({...settings, ...patch})}/>
       <ResolutionFields value={settings} onChange={patch => setSettings({...settings, ...patch})}/>
     </SettingsSection>

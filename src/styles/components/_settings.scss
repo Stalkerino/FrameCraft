@@ -1,6 +1,9 @@
 .settings-dialog {width: min(660px, 92vw); max-height: 90dvh; margin: auto; padding: 0; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 30px 90px #0008; overflow-y: auto; &::backdrop {background: #080c0ebb; backdrop-filter: blur(5px);}}
 .settings-dialog__heading {display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); h2 {font-size: 18px;}}
 .settings-form {display: flex; flex-direction: column; gap: 17px; padding: 24px; .field {margin: 0;} input:not([type='checkbox']), select {width: 100%; min-width: 0; border: 1px solid var(--border); background: #111618; color: var(--text); border-radius: 6px; padding: 9px 10px; font: inherit; font-size: 12px;} input[type='color'] {height: 36px; padding: 4px;}}
+// Fixed-height field selects cannot use the input's 9px vertical padding:
+// WebKit clips their selected text to an 8px content box.
+.settings-form select {height: 32px; padding-block: 0; line-height: normal;}
 .settings-description {font-size: 12px; line-height: 1.6; color: var(--muted-strong);}
 .settings-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 16px;}
 .settings-actions {display: flex; justify-content: flex-end; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border);}

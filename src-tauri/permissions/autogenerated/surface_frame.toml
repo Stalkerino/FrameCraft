@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-surface-frame"
+description = "Enables the surface_frame command without any pre-configured scope."
+commands.allow = ["surface_frame"]
+
+[[permission]]
+identifier = "deny-surface-frame"
+description = "Denies the surface_frame command without any pre-configured scope."
+commands.deny = ["surface_frame"]

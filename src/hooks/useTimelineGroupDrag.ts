@@ -8,12 +8,12 @@ export function useTimelineGroupDrag() {
   const cleanup = useRef<(() => void) | null>(null);
   useEffect(() => () => cleanup.current?.(), [revision, projectId]);
   return (event: PointerEvent, id: string, pixelsPerFrame: number) => {
-    const state = useEditor.getState(); const project = state.snapshot?.project; const ids = timelineSelection(state);
+    const state = useEditor.getState(); const project = state.snapshot?.project; const ids = timelineSelection({...state, selectedId: id});
     if(!project || !ids.includes(id) || ids.length < 2) return false;
     const clips = project.clips.filter(c => ids.includes(c.id)); const anchor = clips.find(c => c.id === id)!;
     const x = event.clientX; const container = event.currentTarget.closest('.timeline-scroll'); const scrollStart = container?.scrollLeft ?? 0;
     let delta = 0; let moved = false;
-    useEditor.setState({playing: false});
+    useEditor.setState({playing: false, selectedId: id, selectedIds: ids, inspectorTab: 'properties'});
     const move = (e: globalThis.PointerEvent) => {
       if(e.pointerId !== event.pointerId) return;
       const distance = e.clientX - x + (container?.scrollLeft ?? 0) - scrollStart;

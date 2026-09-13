@@ -4,10 +4,10 @@ import {changeMediaPreview, rejectOriginalPlayback, useMedia} from '../stores/me
 import {playbackSource, type PlaybackSource} from '../services/preview-quality';
 
 /** Playback media is browser-local state, independent of project edits and export. */
-export function useMediaPlaybackSources(assets: Asset[]) {
+export function useMediaPlaybackSources(assets: Asset[], native = false) {
   // Progress ticks do not change this signature or Remotion's inputProps. Only
   // changing a source or its availability should affect the playback clock.
-  const signature = useMedia(state => JSON.stringify(assets.map(asset => playbackSource(asset, state.quality, state.previews, state.unsupportedOriginals))));
+  const signature = useMedia(state => JSON.stringify(assets.map(asset => playbackSource(asset, state.quality, state.previews, state.unsupportedOriginals, native))));
   const selections = useMemo<PlaybackSource[]>(() => JSON.parse(signature), [signature]);
   useEffect(() => {
     for(const source of selections) if(source.mode !== 'original' && source.status === 'idle') void changeMediaPreview(source.assetId, 'ensure', source.mode);

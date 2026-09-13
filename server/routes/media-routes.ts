@@ -2,6 +2,7 @@ import {Router} from 'express';
 import {isConnectionError} from '../http/connection-errors';
 import path from 'node:path';
 import {z} from 'zod';
+import {previewQualities} from '../../shared/media-import';
 import type {MediaFileRepository} from '../repositories/media-file-repository';
 import type {ProjectRepository} from '../repositories/project-repository';
 import type {MediaPreviewService} from '../services/media-preview-service';
@@ -23,7 +24,7 @@ export function mediaPreviewRoutes(previews: MediaPreviewService, repository: Pr
   const router = Router();
   router.get('/previews', (_req, res) => res.json(previews.snapshot(repository.snapshot().project.assets)));
   router.post('/:assetId/preview', (req, res) => {
-    const {action, quality} = z.object({action: z.enum(['cancel', 'retry', 'ensure']), quality: z.enum(['high', 'performance']).default('high')}).parse(req.body);
+    const {action, quality} = z.object({action: z.enum(['cancel', 'retry', 'ensure']), quality: z.enum(previewQualities).default('high')}).parse(req.body);
     const asset = repository.snapshot().project.assets.find(a => a.id === req.params.assetId);
     if(!asset) throw new Error('Media asset was not found in this project');
     res.json(previews.action(asset, action, quality));

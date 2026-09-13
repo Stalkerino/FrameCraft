@@ -1,3 +1,4 @@
+import {sequenceSource} from '../../shared/project-sequences';
 import type {Clip, Project} from '../../shared/project';
 import {visualStateAtFrame} from '../../shared/visual-editing';
 export interface Rect {left: number; top: number; width: number; height: number}
@@ -23,13 +24,14 @@ export function measurePreview(canvas: HTMLElement, project: Project, frame: num
   const root = canvas.getBoundingClientRect(); const result: {id: string; rect: Rect}[] = [];
   const active = new Map(project.clips.filter(c => c.track !== 'audio' && frame >= c.start && frame < c.start + c.duration).map(c => [c.id, c]));
   for(const element of canvas.querySelectorAll<HTMLElement>('[data-preview-clip]')) {
+    if(element.closest('[data-nested-content]')) continue;
     const id = element.dataset.previewClip!; const clip = active.get(id); if(!clip) continue;
     const measured = element.getBoundingClientRect();
     const rect = {left: measured.left - root.left, top: measured.top - root.top, width: measured.width, height: measured.height};
     // A rotated element already supplies an enclosing DOM rectangle. Refitting
     // the source ratio inside that rectangle would shrink the selection wrongly.
     if(clip.track === 'visual' && Math.abs(visualStateAtFrame(clip, frame - clip.start).rotation % 180) < .001) {
-      const asset = project.assets.find(a => a.id === clip.assetId);
+      const asset = sequenceSource(project, clip);
       if(asset?.width && asset.height) {
         const fit = Math.min(rect.width / asset.width, rect.height / asset.height);
         const width = asset.width * fit; const height = asset.height * fit;

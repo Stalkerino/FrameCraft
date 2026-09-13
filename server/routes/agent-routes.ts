@@ -25,5 +25,6 @@ export function agentRoutes(agent: AgentSessionService) {
   router.post('/auto-approve', (req, res) => {const {enabled} = z.object({enabled: z.boolean()}).strict().parse(req.body); res.json(agent.setAutoApprove(enabled));});
   router.post('/models/refresh', async (_req, res) => res.json(await agent.refreshModels()));
   router.post('/settings', async (req, res) => res.json(await agent.configure(agentModelSettingsSchema.parse(req.body))));
+  router.post('/cli-option', async (req, res) => {const {id, value} = z.object({id: z.string().min(1), value: z.string()}).strict().parse(req.body); res.json(await agent.configureOption(id, value));});
   return router;
 }

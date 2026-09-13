@@ -2,6 +2,7 @@ import {useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode} f
 import {useWorkspace} from '../../stores/workspace-store';
 import {ResizeHandle} from '../atoms/ResizeHandle';
 import {WorkspaceToolbar} from '../molecules/WorkspaceToolbar';
+import {WindowFrame} from '../molecules/WindowFrame';
 export function EditorLayout({header, library, preview, inspector, timeline, overlays}: {header: ReactNode; library: ReactNode; preview: ReactNode; inspector: ReactNode; timeline: ReactNode; overlays?: ReactNode}) {
   const root = useRef<HTMLDivElement>(null); const workspace = useWorkspace();
   const [bounds, setBounds] = useState({width: 1440, height: 900});
@@ -23,6 +24,6 @@ export function EditorLayout({header, library, preview, inspector, timeline, ove
       <div className="workspace-panel workspace-panel--inspector" hidden={!workspace.showInspector}>{inspector}</div>
     </div>
     <ResizeHandle label="Resize timeline" orientation="horizontal" value={timelineHeight} min={180} max={maxTimeline} direction={-1} onResize={timelineHeight => workspace.configure({timelineHeight}, false)} onCommit={workspace.save}/>
-    {timeline}{overlays}
+    {timeline}{overlays}<WindowFrame/>
   </div>;
 }

@@ -2,6 +2,7 @@ import {Plus, RotateCcw, Trash2, Volume2} from 'lucide-react';
 import {useState} from 'react';
 import {keyframeGain, type AudioEnvelope} from '../../../shared/audio-envelope';
 import type {AudioEffects} from '../../../shared/audio-effects';
+import {createId} from '../../services/id-service';
 import type {Clip, Project} from '../../../shared/project';
 import {clipTrackId, projectTracks} from '../../../shared/tracks';
 import {useAudioEditing} from '../../hooks/useAudioEditing';
@@ -24,7 +25,7 @@ export function AudioProperties({clip, project}: {clip: Clip; project: Project})
   const [equalizer, setEqualizer] = useState(initialEffects?.equalizer ?? {low: 0, mid: 0, high: 0});
   const [compressor, setCompressor] = useState(initialEffects?.compressor ?? {threshold: -18, ratio: 4, attack: 10, release: 180, makeup: 0});
   const [reverb, setReverb] = useState(initialEffects?.reverb ?? {wet: .2, room: .5});
-  const triggerTracks = projectTracks(project).filter(track => track.id !== clipTrackId(project, clip) && !track.muted && !track.hidden && project.clips.some(candidate => clipTrackId(project, candidate) === track.id && (candidate.kind === 'video' || candidate.kind === 'audio')));
+  const triggerTracks = projectTracks(project).filter(track => track.id !== clipTrackId(project, clip) && !track.muted && !track.hidden && project.clips.some(candidate => clipTrackId(project, candidate) === track.id && (candidate.kind === 'video' || candidate.kind === 'audio' || candidate.kind === 'sequence')));
   const foreground = triggerTracks.some(track => track.id === triggerId) ? triggerId : triggerTracks[0]?.id ?? '';
   const localPoints = envelope.keyframes.map((point, index) => ({point, index, localFrame: point.frame - envelope.offset})).filter(point => point.localFrame >= 0 && point.localFrame <= clip.duration);
   const outsidePoints = envelope.keyframes.length - localPoints.length;
@@ -41,6 +42,7 @@ export function AudioProperties({clip, project}: {clip: Clip; project: Project})
   };
   const effects: AudioEffects = {...(eqEnabled ? {equalizer} : {}), ...(compressorEnabled ? {compressor} : {}), ...(reverbEnabled ? {reverb} : {})};
   return <div className="audio-properties">
+    {clip.kind === 'video' && <Button type="button" disabled={busy || project.assets.find(a => a.id === clip.assetId)?.hasAudio === false || !!clip.linkId && project.clips.some(c => c.kind === 'audio' && c.linkId === clip.linkId)} onClick={() => void useEditor.getState().execute([{type: 'clip.detach-audio', id: clip.id, newClipId: createId(), newAssetId: createId(), linkId: createId()}], 'Detached linked audio')}>Detach audio to a linked track</Button>}
     <NumberField label="Volume" value={Math.round(clip.volume * 100)} max={100} suffix="%" disabled={busy} onCommit={volume => void useEditor.getState().updateClip(clip.id, {volume: volume / 100}, 'Changed clip volume')}/>
     <div className="field-row"><NumberField label="Fade in" value={envelope.fadeIn / fps} max={envelope.duration / fps} step={1 / fps} suffix="s" disabled={busy} onCommit={seconds => save({fadeIn: Math.round(seconds * fps)})}/><NumberField label="Fade out" value={envelope.fadeOut / fps} max={envelope.duration / fps} step={1 / fps} suffix="s" disabled={busy} onCommit={seconds => save({fadeOut: Math.round(seconds * fps)})}/></div>
     {(envelope.offset !== 0 || envelope.duration !== clip.duration) && <p className="field-help">Original envelope: {(envelope.duration / fps).toFixed(2)} s. This fragment starts at {(envelope.offset / fps).toFixed(2)} s in that envelope; fades keep their original timing.</p>}
@@ -57,6 +59,7 @@ export function AudioProperties({clip, project}: {clip: Clip; project: Project})
     </details>
     {clip.audioEnvelope && <button type="button" className="audio-properties__reset" disabled={busy} onClick={() => void editing.saveEnvelope(null)}><RotateCcw size={12}/> Reset fades & automation</button>}
 
+    {clip.audioDucking&&<div className="audio-properties__group"><p className="field-help">Activity ducking is applied separately from these manual fades and volume points. Edit its envelope through MCP, or analyze again from Audio mixer → Auto audio.</p><Button disabled={busy} onClick={()=>void useEditor.getState().updateClip(clip.id,{audioDucking:null},'Removed activity ducking')}>Remove activity ducking</Button></div>}
     <details className="audio-properties__group">
       <summary>Automatic ducking</summary>
       <p className="field-help">Lower this clip while foreground clips overlap. This uses their timeline ranges, not speech detection, and replaces this clip’s fades and automation.</p>
@@ -66,7 +69,7 @@ export function AudioProperties({clip, project}: {clip: Clip; project: Project})
       <Button type="button" disabled={busy || !foreground} onClick={() => void editing.applyDucking(foreground, 1 - reduction / 100, Math.round(attack * fps), Math.round(release * fps))}>Apply ducking</Button>
     </details>
 
-    <details className="audio-properties__group">
+    {clip.kind !== 'sequence' && <details className="audio-properties__group">
       <summary>Audio effects</summary>
       <p className="field-help">Render a processed audio copy for playback and export. Original media stays intact. For video, this adds an audio clip and mutes the video’s sound.</p>
       {initialEffects && <p className="field-help">This is a processed copy. Applying new settings starts from its retained original source.</p>}
@@ -78,7 +81,7 @@ export function AudioProperties({clip, project}: {clip: Clip; project: Project})
       {reverbEnabled && <div className="field-row"><NumberField label="Wet mix" value={Math.round(reverb.wet * 100)} max={100} suffix="%" disabled={busy} onCommit={wet => setReverb({...reverb, wet: wet / 100})}/><NumberField label="Room size" value={Math.round(reverb.room * 100)} max={100} suffix="%" disabled={busy} onCommit={room => setReverb({...reverb, room: room / 100})}/></div>}
       {reverbEnabled && <p className="field-help">Reverb is trimmed at the clip’s end to keep the timeline synchronized.</p>}
       <Button type="button" icon={<Volume2 size={13}/>} disabled={busy || (!eqEnabled && !compressorEnabled && !reverbEnabled)} onClick={() => void editing.applyEffects(effects)}>Apply audio effects</Button>
-    </details>
+    </details>}
     {editing.job && <div className={`audio-properties__job audio-properties__job--${editing.job.status}`} role="status">
       <span>{editing.job.status === 'done' ? 'Audio effects applied' : editing.job.status === 'error' ? 'Audio processing failed' : editing.job.status === 'cancelled' ? 'Audio processing cancelled' : editing.job.status === 'queued' ? 'Audio processing queued' : `Processing audio · ${Math.round(editing.job.progress * 100)}%`}</span>
       {editing.running && <><progress aria-label="Audio processing progress" max={1} value={editing.job.progress}/><Button type="button" disabled={editing.pending} onClick={() => void editing.cancelEffects()}>Cancel processing</Button></>}

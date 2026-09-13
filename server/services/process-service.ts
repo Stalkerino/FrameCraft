@@ -31,7 +31,7 @@ export class ProcessError extends Error {
 }
 
 /** No shell interpolation: paths and arguments work on Windows and Linux. */
-export function runProcess(binary: string, args: string[], timeout = 600_000, options: {signal?: AbortSignal; onOutput?: (chunk: Buffer) => void} = {}): Promise<string> {
+export function runProcess(binary: string, args: string[], timeout = 600_000, options: {signal?: AbortSignal; onOutput?: (chunk: Buffer) => void; onDiagnostic?: (chunk: string) => void} = {}): Promise<string> {
   return new Promise((resolve, reject) => {
     if(shutdownReason || options.signal?.aborted) {
       reject(new ProcessError(`${binary} was cancelled`, binary, 'abort', null, null, '', shutdownReason ?? options.signal?.reason));
@@ -79,7 +79,12 @@ export function runProcess(binary: string, args: string[], timeout = 600_000, op
         terminate(error instanceof Error ? error : new Error(String(error)));
       }
     });
-    child.stderr.on('data', chunk => {stderr = (stderr + chunk.toString()).slice(-6000);});
+    child.stderr.on('data', chunk => {
+      stderr = (stderr + chunk.toString()).slice(-6000);
+      if(termination) return;
+      try {options.onDiagnostic?.(chunk.toString());}
+      catch(error) {terminate(error instanceof Error ? error : new Error(String(error)));}
+    });
     child.on('error', (error: NodeJS.ErrnoException) => {
       if(termination instanceof Error) {finish(termination); return;}
       if(termination) {

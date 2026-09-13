@@ -1,3 +1,7 @@
+import {colorGradeStages} from '../../shared/color-grading';
+import {GradedMedia} from './layers/GradedMedia';
+import {NestedSequence} from './layers/NestedSequence';
+import {sequenceSource} from '../../shared/project-sequences';
 import {AbsoluteFill, Html5Audio, Img, Sequence, getRemotionEnvironment, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 import {useMemo} from 'react';
 import type {Clip, Project} from '../../shared/project';
@@ -15,9 +19,12 @@ import {audioEnvelopeGain} from '../../shared/audio-envelope';
 import {ColorGradeFilter} from './layers/ColorGradeFilter';
 import {visualStateAtFrame} from '../../shared/visual-editing';
 import {visualGeometryStyle} from './effects/visual-geometry';
+import {compositionOutputTransform} from '../../shared/composition-layout';
+import {transitionHold, transitionProgress} from '../../shared/transition-timing';
+import {typewriterCharacters} from '../../shared/text-timing';
 
-export interface CompositionProps extends Record<string, unknown> {project: Project; mediaBase?: string; pendingPreviews?: string[]; previewSources?: Record<string, string>; onPreviewSourceError?: (assetId: string) => void; overlayPass?: OverlayRenderPass; output?: {width: number; height: number; fit: 'contain' | 'cover' | 'stretch'}}
-interface VisualProps {clip: Clip; project: Project; mediaBase: string; muted?: boolean; opaque?: boolean; pending?: boolean; previewSource?: string; onPreviewSourceError?: (assetId: string) => void}
+export interface CompositionProps extends Record<string, unknown> {project: Project; mediaBase?: string; onMixedAudioError?: (error: Error) => void; mixedAudioSrc?: string; suppressAudio?: boolean; audioOnly?: boolean; pendingPreviews?: string[]; previewSources?: Record<string, string>; onPreviewSourceError?: (assetId: string) => void; overlayPass?: OverlayRenderPass; output?: {width: number; height: number; fit: 'contain' | 'cover' | 'stretch'}}
+interface VisualProps extends Pick<CompositionProps, 'previewSources' | 'pendingPreviews'> {clip: Clip; project: Project; mediaBase: string; muted?: boolean; opaque?: boolean; pending?: boolean; previewSource?: string; onPreviewSourceError?: (assetId: string) => void}
 function useClipVolume(clip: Clip, masterVolume: number): number | ((frame: number) => number) {
   return useMemo(() => clip.audioEnvelope ? (frame: number) => clip.volume * masterVolume * audioEnvelopeGain(clip.audioEnvelope, frame) : clip.volume * masterVolume, [clip.audioEnvelope, clip.volume, masterVolume]);
 }
@@ -31,34 +38,50 @@ function TextLayer({clip, project}: {clip: Clip; project: Project}) {
   const progress = interpolate(frame, [0, fps / 2], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const translateX = clip.align === 'center' ? '-50%' : clip.align === 'right' ? '-100%' : '0%';
   return <div data-preview-clip={clip.id} style={{position: 'absolute', left: `${clip.x}%`, top: `${clip.y}%`, transform: `translate(${translateX}, ${clip.animation === 'rise' ? (1 - progress) * 25 : 0}px) rotate(${clip.rotation ?? 0}deg) scale(${clip.scale})`, transformOrigin: `${clip.align} top`, opacity: clip.animation === 'rise' ? progress : 1, fontFamily: 'Arial, Helvetica, sans-serif', fontSize: clip.fontSize, fontWeight: Number(clip.weight), color: clip.color, textAlign: clip.align, whiteSpace: 'pre', lineHeight: 1.02, letterSpacing: clip.fontSize > 60 ? '-0.045em' : '.14em', textShadow: '0 2px 24px #00000040', ...visualGeometryStyle(clip, project)}}>
-    {clip.animation === 'typewriter' ? clip.text.slice(0, Math.floor(frame / fps * 45)) : clip.text}
+    {clip.animation === 'typewriter' ? clip.text.slice(0, typewriterCharacters(frame, fps, clip.text.length)) : clip.text}
   </div>;
 }
-function VisualLayer({clip, project, mediaBase, muted = false, opaque = true, pending = false, previewSource, onPreviewSourceError}: VisualProps) {
+function VisualLayer({clip, project, mediaBase, muted = false, opaque = true, pending = false, previewSource, previewSources, pendingPreviews, onPreviewSourceError}: VisualProps) {
   const frame = useCurrentFrame();
+  const stages = useMemo(() => colorGradeStages(clip.colorGrade, project.colorGrade, project.colorLuts), [clip.colorGrade, project.colorGrade, project.colorLuts]);
+  const gpuGrade = stages.some(stage => stage.lut || stage.space);
   clip = {...clip, ...visualStateAtFrame(clip, frame)};
   const volume = useClipVolume(clip, project.masterVolume ?? 1);
-  const asset = project.assets.find(a => a.id === clip.assetId); if(!asset && !clip.graphic) return null;
+  const asset = sequenceSource(project, clip); if(!asset && !clip.graphic) return null;
   const src = asset ? mediaBase + (getRemotionEnvironment().isPlayer ? previewSource || asset.src : asset.src) : '';
   const style = {width: '100%', height: '100%', objectFit: 'contain' as const, transform: `translate(${clip.x - 50}%, ${clip.y - 50}%) rotate(${clip.rotation ?? 0}deg) scale(${clip.scale * zoomAtFrame(clip, frame)})`, transformOrigin: `${clip.zoom?.x ?? 50}% ${clip.zoom?.y ?? 50}%`, ...visualGeometryStyle(clip, project)};
-  const progress = Math.min(1, frame / Math.max(1, Math.min(clip.transitionFrames, clip.duration) - 1));
+  const progress = transitionProgress(clip, frame);
   const preset = clip.presetTransition;
+  if(clip.kind === 'sequence' && stages.some(stage => stage.lut)) throw new Error('A LUT on a nested sequence group requires the native GPU monitor/export. For browser composition, apply this LUT inside the source sequence.');
   return <AbsoluteFill style={{opacity: clip.opacity ?? 1}}><AbsoluteFill style={{backgroundColor: opaque ? project.backgroundColor ?? '#080c0e' : undefined, ...(preset ? presetRevealStyle(preset.definition.reveal, progress) : transitions[clip.transition].style(progress))}}>
     {pending && getRemotionEnvironment().isPlayer ? <>
-      {asset?.thumbnail && <ColorGradeFilter clip={clip.colorGrade} project={project.colorGrade}><Img data-preview-clip={clip.id} src={mediaBase + asset.thumbnail} style={style}/></ColorGradeFilter>}
+      {asset?.thumbnail && <ColorGradeFilter clip={clip.colorGrade} project={project.colorGrade} luts={project.colorLuts}><Img data-preview-clip={clip.id} src={mediaBase + asset.thumbnail} style={style}/></ColorGradeFilter>}
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', background: '#080c0eaa', color: '#fff', fontFamily: 'Arial', fontSize: project.width / 45, textAlign: 'center', padding: '8%'}}>Preparing playback media.<br/>Quality and progress are shown below the monitor.</AbsoluteFill>
-    </> : clip.kind === 'graphic' ? <GraphicLayer clip={clip} project={project}/> : <ColorGradeFilter clip={clip.colorGrade} project={project.colorGrade}>{clip.kind === 'image' ? <Img data-preview-clip={clip.id} src={src} style={style}/> : <TimelineVideo clipId={clip.id} src={src} sourceStart={clip.sourceStart} volume={volume} muted={muted} style={style} onUnsupportedSource={asset && src === mediaBase + asset.src && onPreviewSourceError ? () => onPreviewSourceError(asset.id) : undefined}/>}</ColorGradeFilter>}
+    </> : gpuGrade && clip.kind !== 'sequence' && clip.kind !== 'graphic' ? <GradedMedia clipId={clip.id} src={src} image={clip.kind === 'image'} sourceStart={clip.sourceStart} volume={volume} muted={muted} style={style} stages={stages} onUnsupportedSource={asset && onPreviewSourceError ? () => onPreviewSourceError(asset.id) : undefined}/> : clip.kind === 'graphic' ? <GraphicLayer clip={clip} project={project}/> : <ColorGradeFilter clip={clip.colorGrade} project={project.colorGrade} luts={project.colorLuts}>{clip.kind === 'sequence' ? <NestedSequence clip={clip} project={project} muted={muted} style={style} mediaBase={mediaBase} previewSources={previewSources} pendingPreviews={pendingPreviews} onPreviewSourceError={onPreviewSourceError}/> : clip.kind === 'image' ? <Img data-preview-clip={clip.id} src={src} style={style}/> : <TimelineVideo clipId={clip.id} src={src} sourceStart={clip.sourceStart} volume={volume} muted={muted} style={style} onUnsupportedSource={asset && src === mediaBase + asset.src && onPreviewSourceError ? () => onPreviewSourceError(asset.id) : undefined}/>}</ColorGradeFilter>}
   </AbsoluteFill>{preset && progress < 1 && <AbsoluteFill><PresetArtwork definition={preset.definition} values={preset.values} progress={progress} width={project.width} height={project.height}/></AbsoluteFill>}</AbsoluteFill>;
 }
 function OverlayLayer({clip, project}: {clip: Clip; project: Project}) {
   const frame = useCurrentFrame(); const evaluated = {...clip, ...visualStateAtFrame(clip, frame)};
   return <AbsoluteFill style={{opacity: evaluated.opacity ?? 1}}>{clip.kind === 'graphic' ? <GraphicLayer clip={evaluated} project={project}/> : clip.kind === 'annotation' ? <AnnotationLayer clip={evaluated} width={project.width} height={project.height}/> : clip.caption ? <CaptionLayer clip={evaluated} project={project}/> : <TextLayer clip={evaluated} project={project}/>}</AbsoluteFill>;
 }
-export function ProjectComposition({project, mediaBase = '', output, pendingPreviews, previewSources, onPreviewSourceError, overlayPass}: CompositionProps) {
+export function ProjectComposition({project, mediaBase = '', output, pendingPreviews, previewSources, onPreviewSourceError, overlayPass, audioOnly, mixedAudioSrc, suppressAudio, onMixedAudioError}: CompositionProps) {
+  if(suppressAudio || mixedAudioSrc) {
+    const silent={...project,masterVolume:0,tracks:projectTracks(project).map(track=>({...track,muted:true}))};
+    return <>{mixedAudioSrc&&<Html5Audio src={mediaBase+mixedAudioSrc} pauseWhenBuffering onError={onMixedAudioError}/>}<ProjectComposition project={silent} mediaBase={mediaBase} output={output} pendingPreviews={pendingPreviews} previewSources={previewSources} onPreviewSourceError={onPreviewSourceError} overlayPass={overlayPass} audioOnly={audioOnly}/></>;
+  }
+  if(audioOnly) return <ProjectAudio project={project} mediaBase={mediaBase}/>;
   if(!output) return <ProjectScene project={project} mediaBase={mediaBase} pendingPreviews={pendingPreviews} previewSources={previewSources} onPreviewSourceError={onPreviewSourceError} overlayPass={overlayPass}/>;
-  const sx = output.width / project.width; const sy = output.height / project.height;
-  const scale = output.fit === 'cover' ? Math.max(sx, sy) : Math.min(sx, sy);
-  return <AbsoluteFill style={{background: overlayPass ? 'transparent' : project.backgroundColor ?? '#080c0e', overflow: 'hidden'}}><div style={{position: 'absolute', left: '50%', top: '50%', width: project.width, height: project.height, transform: `translate(-50%, -50%) scale(${output.fit === 'stretch' ? `${sx}, ${sy}` : scale})`}}><ProjectScene project={project} mediaBase={mediaBase} pendingPreviews={pendingPreviews} previewSources={previewSources} onPreviewSourceError={onPreviewSourceError} overlayPass={overlayPass}/></div></AbsoluteFill>;
+  const {scaleX, scaleY} = compositionOutputTransform(project, output);
+  return <AbsoluteFill style={{background: overlayPass ? 'transparent' : project.backgroundColor ?? '#080c0e', overflow: 'hidden'}}><div style={{position: 'absolute', left: '50%', top: '50%', width: project.width, height: project.height, transform: `translate(-50%, -50%) scale(${scaleX}, ${scaleY})`}}><ProjectScene project={project} mediaBase={mediaBase} pendingPreviews={pendingPreviews} previewSources={previewSources} onPreviewSourceError={onPreviewSourceError} overlayPass={overlayPass}/></div></AbsoluteFill>;
+}
+/** Native mode retains the existing audio envelope/transport without mounting
+ * browser video decoders or visual layers. Audio remains a CPU stage. */
+function ProjectAudio({project, mediaBase}: {project: Project; mediaBase: string}) {
+  return <>{projectTracks(project).filter(track => !track.hidden).flatMap(track => trackClips(project, track.id).filter(clip => clip.kind === 'video' || clip.kind === 'audio' || clip.kind === 'sequence').map(clip => {
+    if(clip.kind === 'sequence') return <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration}><NestedSequence clip={clip} project={project} muted={track.muted} mediaBase={mediaBase} audioOnly/></Sequence>;
+    const asset = project.assets.find(asset => asset.id === clip.assetId);
+    return asset ? <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration}><AudioLayer clip={clip} src={mediaBase + asset.src} muted={track.muted} masterVolume={project.masterVolume ?? 1}/></Sequence> : null;
+  }))}</>;
 }
 function ProjectScene({project, mediaBase = '', pendingPreviews = [], previewSources, onPreviewSourceError, overlayPass}: CompositionProps) {
   const tracks = [...projectTracks(project)].filter(track => !track.hidden).reverse();
@@ -71,8 +94,8 @@ function ProjectScene({project, mediaBase = '', pendingPreviews = [], previewSou
         if(track.type === 'visual') {
           const next = clips[index + 1];
           // Transitions hold only the preceding clip on this same track.
-          const hold = next && next.start === clip.start + clip.duration && (next.transition !== 'none' || next.presetTransition) ? Math.min(next.transitionFrames, next.duration) : 0;
-          return <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration + hold} premountFor={getRemotionEnvironment().isPlayer ? Math.round(project.fps) : 0}><HeldVisual clip={clip} project={project} mediaBase={mediaBase} muted={track.muted} opaque={track.id === bottomVisual} pending={!!clip.assetId && pendingPreviews.includes(clip.assetId)} previewSource={clip.assetId ? previewSources?.[clip.assetId] : undefined} onPreviewSourceError={onPreviewSourceError}/></Sequence>;
+          const hold = transitionHold(clip, next);
+          return <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration + hold} premountFor={getRemotionEnvironment().isPlayer ? Math.round(project.fps) : 0}><HeldVisual clip={clip} project={project} mediaBase={mediaBase} muted={track.muted} opaque={track.id === bottomVisual} previewSources={previewSources} pendingPreviews={pendingPreviews} pending={!!clip.assetId && pendingPreviews.includes(clip.assetId)} previewSource={clip.assetId ? previewSources?.[clip.assetId] : undefined} onPreviewSourceError={onPreviewSourceError}/></Sequence>;
         }
         if(track.type === 'text') return <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration}><OverlayLayer clip={clip} project={project}/></Sequence>;
         const asset = project.assets.find(a => a.id === clip.assetId);

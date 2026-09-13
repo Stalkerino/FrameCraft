@@ -23,3 +23,5 @@
     white-space: nowrap;
   }
 }
+
+.preview__recovery--native {position: static; margin: 0 10px 8px; flex-shrink: 0; span {overflow-wrap: anywhere; min-width: 0;} button {flex-shrink: 0;}}

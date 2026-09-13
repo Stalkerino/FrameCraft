@@ -1,3 +1,4 @@
+import {SequenceReference} from '../molecules/SequenceReference';
 import {useAgentName} from '../../stores/agent-store';
 import {AlignCenter, AlignLeft, AlignRight, AudioLines, Boxes, Copy, Crosshair, Film, Image, SlidersHorizontal, Sparkles, Trash2, Type, Video} from 'lucide-react';
 import {useEffect, useState} from 'react';
@@ -52,6 +53,7 @@ function ClipProperties({clip}: {clip: Clip}) {
   return <>
     <div className="selection-heading"><div className={`selection-icon selection-icon--${clip.track}`}><Icon size={17}/></div><div><input aria-label="Clip name" title="Rename selected clip" maxLength={240} value={name} onChange={event => setName(event.target.value)} onBlur={commitName} onKeyDown={event => {if(event.key === 'Enter') event.currentTarget.blur(); if(event.key === 'Escape') {setName(clip.name); event.stopPropagation();}}}/><span>{clip.kind === 'text' ? clip.caption ? 'Caption clip' : 'Text clip' : `${clip.kind[0].toUpperCase()}${clip.kind.slice(1)} clip`}</span></div><IconButton label="Go to clip start" onClick={() => {useEditor.setState({playing: false}); useEditor.getState().seekTo(clip.start);}}><Crosshair size={14}/></IconButton><IconButton label="Duplicate clip" title="Duplicate clip (Ctrl+D)" disabled={busy} onClick={() => void useEditor.getState().duplicateClip()}><Copy size={14}/></IconButton></div>
     <div className="inspector-content">
+      {project && clip.kind === 'sequence' && <SequenceReference clip={clip} project={project}/>}
       {clip.kind === 'text' && <PropertySection title="Text & style">
         <textarea aria-label="Text content" readOnly={!!clip.caption} value={text} rows={3} onChange={event => setText(event.target.value)} onBlur={() => {if(text !== clip.text) patch({text}, 'Edited text');}}/>
         {clip.caption && <p className="field-help">Caption words follow the transcript. Caption options are below.</p>}
@@ -61,7 +63,7 @@ function ClipProperties({clip}: {clip: Clip}) {
       </PropertySection>}
       <PropertySection title="Timing & track" summary={`${(clip.duration / fps).toFixed(2)} s`}>
         <div className="field-row"><NumberField label="Start" value={clip.start / fps} step={1 / fps} suffix="s" onCommit={start => patch({start: Math.round(start * fps)})}/><NumberField label="Duration" value={clip.duration / fps} min={1 / fps} max={sourceLength === undefined ? undefined : (sourceLength - clip.sourceStart) / fps} step={1 / fps} suffix="s" onCommit={duration => patch({duration: Math.max(1, Math.round(duration * fps))})}/></div>
-        {(clip.kind === 'video' || clip.kind === 'audio') && <NumberField label="Source in" value={clip.sourceStart / fps} max={sourceLength === undefined ? undefined : Math.max(0, sourceLength - clip.duration) / fps} step={1 / fps} suffix="s" onCommit={sourceStart => patch({sourceStart: Math.round(sourceStart * fps)})}/>}
+        {(clip.kind === 'video' || clip.kind === 'audio' || clip.kind === 'sequence') && <NumberField label="Source in" value={clip.sourceStart / fps} max={sourceLength === undefined ? undefined : Math.max(0, sourceLength - clip.duration) / fps} step={1 / fps} suffix="s" onCommit={sourceStart => patch({sourceStart: Math.round(sourceStart * fps)})}/>}
         {project && <Field label="Timeline track"><select aria-label="Timeline track" value={clipTrackId(project, clip)} onChange={event => void useEditor.getState().execute([{type: 'clip.move-track', id: clip.id, trackId: event.target.value}], `Moved ${clip.name} to another track`)}>{projectTracks(project).filter(track => acceptsClip(track, clip)).map(track => <option key={track.id} value={track.id}>{track.name}</option>)}</select></Field>}
       </PropertySection>
       {project && (clip.kind === 'video' || clip.kind === 'audio') && <PropertySection title="Speed & timing" defaultOpen={!!asset?.speedProcessing}><SpeedProperties clip={clip} project={project}/></PropertySection>}
@@ -69,7 +71,7 @@ function ClipProperties({clip}: {clip: Clip}) {
       {project && clip.track !== 'audio' && <TransformKeyframes clip={clip} project={project}/>}
       {project && clip.track !== 'audio' && <CropMaskProperties clip={clip} project={project}/>}
       <OverlayProperties clip={clip} patch={patch}/>
-      {(clip.kind === 'video' || clip.kind === 'image') && <ClipColorGrading clip={clip}/>}
+      {(clip.kind === 'video' || clip.kind === 'image' || clip.kind === 'sequence') && <ClipColorGrading clip={clip}/>}
       <PresetInstanceProperties clip={clip} patch={patch}/>
       {clip.kind === 'text' && <PropertySection title="Text animation" defaultOpen={false} summary={clip.animation === 'none' ? 'None' : clip.animation === 'rise' ? 'Fade & rise' : 'Typewriter'}><Field label="Entrance"><select aria-label="Text animation" value={clip.animation} onChange={event => patch({animation: event.target.value as Clip['animation']})}><option value="none">None</option><option value="rise">Fade & rise</option><option value="typewriter">Typewriter</option></select></Field></PropertySection>}
       {clip.track === 'visual' && <PropertySection title="Transition in" summary={transitionName} defaultOpen={clip.transition !== 'none' || !!clip.presetTransition}>
@@ -77,7 +79,7 @@ function ClipProperties({clip}: {clip: Clip}) {
         {(clip.transition !== 'none' || clip.presetTransition) && <NumberField label="Transition duration" value={clip.transitionFrames / fps} min={clip.presetTransition ? .1 : 1 / fps} max={clip.presetTransition ? 120 : 5} step={1 / fps} suffix="s" onCommit={value => patch({transitionFrames: Math.round(value * fps), ...(clip.presetTransition ? {presetTransition: {...clip.presetTransition, duration: value}} : {})})}/>}
         <p className="field-help">Reveals this clip over the previous frame. Clip timing stays fixed.</p>
       </PropertySection>}
-      {project && (clip.kind === 'video' || clip.kind === 'audio') && <PropertySection title="Audio" summary={clip.volume === 0 ? 'Muted' : `${Math.round(clip.volume * 100)}%`}><AudioProperties clip={clip} project={project}/></PropertySection>}
+      {project && (clip.kind === 'video' || clip.kind === 'audio' || clip.kind === 'sequence') && <PropertySection title="Audio" summary={clip.volume === 0 ? 'Muted' : `${Math.round(clip.volume * 100)}%`}><AudioProperties clip={clip} project={project}/></PropertySection>}
       {asset && <PropertySection title="Source media" defaultOpen={false}><dl className="inspector-source-details"><div><dt>File</dt><dd>{asset.name}</dd></div>{asset.width && asset.height && <div><dt>Resolution</dt><dd>{asset.width} × {asset.height}</dd></div>}{asset.videoCodec && <div><dt>Codec</dt><dd>{asset.videoCodec.toUpperCase()}</dd></div>}</dl></PropertySection>}
       <button className="delete-clip" disabled={busy} onClick={() => void useEditor.getState().execute([{type: 'clip.remove', id: clip.id}], `Removed ${clip.name}`)}><Trash2 size={14}/> Remove clip <kbd>Del</kbd></button>
     </div>

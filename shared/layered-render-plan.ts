@@ -8,6 +8,7 @@ import {shiftAudioEnvelope, type AudioEnvelope} from './audio-envelope';
 import type {ColorGrade} from './color-grading';
 import {visualProperties} from './visual-editing';
 import {videoPlacement, type VideoPlacement} from './video-placement';
+import {layeredRenderEligibility} from './render-eligibility';
 
 export interface VideoSegment {start: number; duration: number; sourceStart: number; volume: number; audioEnvelope?: AudioEnvelope | null; colorGrade?: ColorGrade | null; projectColorGrade?: ColorGrade | null; opacity?: number; backgroundColor?: string; asset: Asset | null; placement?: VideoPlacement | null}
 export interface OverlayRun {frame: number; duration: number}
@@ -21,8 +22,9 @@ export function exportFrameRange(project: Project, settings: ExportSettings): [n
 
 /** Native footage and canvas gaps; artwork still uses the shared React composition. */
 export function layeredRenderPlan(project: Project, settings: ExportSettings): LayeredRenderPlan | null {
-  if(!['h264', 'h264-mkv', 'h265', 'av1'].includes(settings.codec)) return null;
-  if(Math.abs(project.width / project.height - settings.width / settings.height) > 1e-6) return null;
+  if([project.colorGrade, ...project.clips.map(clip => clip.colorGrade)].some(grade => grade?.lut?.strength || grade?.space === 'linear-srgb')) return null;
+  const eligibility = layeredRenderEligibility(project, settings);
+  if(eligibility.blockers.length) return null;
   const tracks = [...projectTracks(project)].filter(track => !track.hidden).reverse();
   const base = tracks.find(track => track.type === 'visual');
   if(!base) return null;
@@ -33,9 +35,8 @@ export function layeredRenderPlan(project: Project, settings: ExportSettings): L
   let cursor = firstFrame;
   for(const clip of trackClips(project, base.id).filter(intersects)) {
     const asset = project.assets.find(asset => asset.id === clip.assetId);
-    if(clip.kind !== 'video' || !asset || !asset.width || !asset.height || clip.zoom || clip.transition !== 'none' || clip.presetTransition || clip.rotation || clip.mask || visualProperties.some(property => clip.keyframes?.[property]?.length)) return null;
+    if(!asset) return null;
     const start = Math.max(firstFrame, clip.start); const end = Math.min(lastFrame + 1, clip.start + clip.duration);
-    if(start < cursor) return null;
     if(start > cursor) segments.push(gap(cursor, start - cursor));
     segments.push({start, duration: end - start, sourceStart: clip.sourceStart + start - clip.start,
       volume: base.muted ? 0 : clip.volume * (project.masterVolume ?? 1), ...(clip.audioEnvelope ? {audioEnvelope: shiftAudioEnvelope(clip.audioEnvelope, start - clip.start)} : {}), colorGrade: clip.colorGrade, projectColorGrade: project.colorGrade, opacity: clip.opacity, backgroundColor: project.backgroundColor, asset, placement: videoPlacement(clip, asset, project, settings)});
@@ -44,8 +45,6 @@ export function layeredRenderPlan(project: Project, settings: ExportSettings): L
   if(cursor <= lastFrame) segments.push(gap(cursor, lastFrame + 1 - cursor));
   const visibleIds = new Set(tracks.filter(track => track.id !== base.id).map(track => track.id));
   const overlays = project.clips.filter(clip => visibleIds.has(clipTrackId(project, clip)));
-  // Other videos/audio need the complete compositor and its audio mixer.
-  if(overlays.some(clip => intersects(clip) && (clip.kind === 'video' || clip.kind === 'audio'))) return null;
   const canReuse = !overlays.some(clip => clip.transition !== 'none' || clip.presetTransition);
   const seen = new Map<string, number>(); const overlayFrames: number[] = []; const overlayRuns: OverlayRun[] = [];
   const signatures = overlays.map(clip => ({clip, state: overlaySignature(clip, project.fps)}));

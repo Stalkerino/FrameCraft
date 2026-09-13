@@ -3,11 +3,16 @@ import {useAgent} from '../../stores/agent-store';
 import {Field} from '../atoms/Field';
 import {Button} from '../atoms/Button';
 import type {AgentProviderSettings as ProviderSettings} from '../../../shared/agent';
+import {agentProviderIds, agentProviderNames, cliAgentPresets, isCliAgent} from '../../../shared/agent-providers';
+import {CliAgentSettings} from './CliAgentSettings';
 
 export function AgentProviderSettings() {
   const {session, pending, online, configureProvider, refreshModels} = useAgent();
   const saved = session.providerSettings;
-  const [provider, setProvider] = useState<'codex' | 'ollama'>(session.provider ?? 'codex');
+  const [provider, setProvider] = useState<ProviderSettings['provider']>(session.provider ?? 'codex');
+  const [cliAgents, setCliAgents] = useState<ProviderSettings['cliAgents']>(saved?.cliAgents ?? {});
+  const [validCli, setValidCli] = useState(true);
+  useEffect(() => {setCliAgents(saved?.cliAgents ?? {});}, [saved?.cliAgents]);
   const [url, setUrl] = useState(saved?.ollamaUrl ?? 'http://127.0.0.1:11434');
   const [context, setContext] = useState(saved?.contextLength ?? 32768);
   const [workspaceAccess, setWorkspaceAccess] = useState<ProviderSettings['workspaceAccess']>(saved?.workspaceAccess ?? 'disabled');
@@ -19,7 +24,8 @@ export function AgentProviderSettings() {
   const gib = (bytes: number) => (bytes / 1024 ** 3).toFixed(1);
   return <section className="agent-provider-settings" aria-label="Provider settings">
     <h3>Provider & connection</h3>
-    <Field label="AI provider"><select aria-label="AI provider" value={provider} disabled={disabled} onChange={event => setProvider(event.target.value as typeof provider)}><option value="codex">Codex CLI</option><option value="ollama">Ollama · Local / network</option></select></Field>
+    <Field label="AI provider"><select aria-label="AI provider" value={provider} disabled={disabled} onChange={event => {setProvider(event.target.value as typeof provider); setValidCli(true);}}>{agentProviderIds.map(id => <option key={id} value={id}>{id === 'ollama' ? 'Ollama · Local / network' : id === 'claude' ? 'Claude Code · ACP adapter' : id === 'custom-acp' ? 'Custom ACP CLI' : `${agentProviderNames[id]} CLI`}</option>)}</select></Field>
+    {isCliAgent(provider) && <CliAgentSettings key={provider} provider={provider} value={cliAgents[provider] ?? {command: cliAgentPresets[provider].command, args: cliAgentPresets[provider].args, cwd: ''}} disabled={disabled} onValidityChange={setValidCli} onChange={config => setCliAgents({...cliAgents, [provider]: config})}/>}
     {provider === 'ollama' && <>
       <Field label="Ollama server URL"><input type="url" aria-label="Ollama server URL" value={url} placeholder="http://192.168.1.50:11434" disabled={disabled} onChange={event => setUrl(event.target.value)}/></Field>
       <Field label="Context tokens"><input type="number" aria-label="Ollama context tokens" min={4096} max={262144} step={1024} value={context} disabled={disabled} onChange={event => setContext(Number(event.target.value))}/></Field>
@@ -41,7 +47,7 @@ export function AgentProviderSettings() {
         {workspaceAccess === 'commands' && <p className="field-help">Commands also follow Auto-allow and run with your host account permissions. This folder is a working directory, not a sandbox.</p>}
       </>}
     </>}
-    <Button disabled={disabled || !url.trim() || !Number.isInteger(context) || context < 4096 || context > 262144} onClick={() => void configureProvider({provider, ollamaUrl: url, contextLength: context, workspaceAccess, workspacePath})}>Save provider settings</Button>
+    <Button disabled={disabled || (isCliAgent(provider) && (!validCli || (provider === 'custom-acp' && !cliAgents[provider]?.command.trim()))) || !url.trim() || !Number.isInteger(context) || context < 4096 || context > 262144} onClick={() => void configureProvider({provider, ollamaUrl: url, contextLength: context, workspaceAccess, workspacePath, cliAgents})}>Save provider settings</Button>
     {session.provider === 'ollama' && <Button disabled={disabled} onClick={() => void refreshModels()}>Load Ollama models</Button>}
   </section>;
 }

@@ -1,0 +1,24 @@
+{
+  "release": "autobuild-2026-09-12-13-12",
+  "baseUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-12-13-12/",
+  "sharedPlatforms": {
+    "linux-x64": {
+      "archive": "ffmpeg-n8.1.2-52-g5a03dfa0f6-linux64-gpl-shared-8.1.tar.xz",
+      "sha256": "4f1098dce5bce1762048a8e134df6e8cb0d57f3d1f0660a9dd86d893d8248ac8"
+    },
+    "win32-x64": {
+      "archive": "ffmpeg-n8.1.2-52-g5a03dfa0f6-win64-gpl-shared-8.1.zip",
+      "sha256": "61e231f72ea3dd851f6bfccbbda3a7809a20530ddff1aad85a31fe00cd368704"
+    }
+  },
+  "platforms": {
+    "linux-x64": {
+      "archive": "ffmpeg-n8.1.2-52-g5a03dfa0f6-linux64-gpl-8.1.tar.xz",
+      "sha256": "682dba33847c14b496b51bb4f8bd6601a180295d038928c68c558ab8978d6fa8"
+    },
+    "win32-x64": {
+      "archive": "ffmpeg-n8.1.2-52-g5a03dfa0f6-win64-gpl-8.1.zip",
+      "sha256": "8ebd7e82791b8f753ade7fd6f2eacf8ce02127dfb1f25102d85154d1779cd2de"
+    }
+  }
+}

@@ -24,6 +24,10 @@ export async function setup({start = true} = {}) {
     }
     const codecs = await run(env.FFMPEG_PATH, ['-hide_banner', '-encoders'], {env, capture: true, log});
     if(!/\blibx264\b/.test(codecs) || !/\baac\b/.test(codecs)) throw new Error('FFmpeg needs libx264 and AAC support. On Fedora/openSUSE enable the distribution\'s multimedia repository and install its complete FFmpeg package, then rerun setup.');
+    if(process.arch === 'x64' && ['win32', 'linux'].includes(process.platform)) {
+      const {installVulkan} = await import('./vulkan.mjs');
+      await installVulkan();
+    }
     console.log('Installing the locked application dependencies...');
     await run(process.execPath, [await npmCli(), 'ci', '--include=dev', '--no-fund', '--no-audit'], {env, log});
     console.log('Preparing the rendering browser (download only; no GPU test)...');

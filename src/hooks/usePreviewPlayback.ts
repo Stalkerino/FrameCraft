@@ -2,6 +2,7 @@ import {type PlayerRef} from '@remotion/player';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {durationOf} from '../../shared/project';
 import {useEditor} from '../stores/editor-store';
+import {createPreviewSeekQueue, visiblePreviewVideos} from '../services/preview-seek-service';
 
 const STALL_TIMEOUT = 8000;
 const MAX_RECOVERIES = 2;
@@ -10,6 +11,7 @@ const MAX_RECOVERIES = 2;
 export function usePreviewPlayback(identity: string, muted: boolean) {
   const player = useRef<PlayerRef>(null);
   const pendingSeek = useRef<number | null>(null);
+  const seekQueue = useRef<ReturnType<typeof createPreviewSeekQueue> | null>(null);
   const attempts = useRef(0);
   const [generation, setGeneration] = useState(0);
   const [status, setStatus] = useState<'ready' | 'loading' | 'recovering' | 'blocked'>('ready');
@@ -47,17 +49,32 @@ export function usePreviewPlayback(identity: string, muted: boolean) {
     ref.addEventListener('waiting', waiting);
     ref.addEventListener('resume', resume);
     if(ref.getCurrentFrame() !== target) {pendingSeek.current = target; ref.seekTo(target);}
+    const queue = createPreviewSeekQueue(frame => {
+      if(ref.getCurrentFrame() !== frame) ref.seekTo(frame);
+      else pendingSeek.current = null;
+    }, () => visiblePreviewVideos(ref.getContainerNode()).some(video => video.seeking));
+    seekQueue.current = queue;
+    const container = ref.getContainerNode();
+    const readyEvents = ['seeked', 'loadeddata', 'canplay'] as const;
+    for(const name of readyEvents) container?.addEventListener(name, queue.ready, true);
 
     let lastFrame = ref.getCurrentFrame();
     let stalledSince = performance.now();
     let healthySince = performance.now();
     let recovering = false;
+    let lastSeek = useEditor.getState().seekRequest.id;
     const watchdog = setInterval(() => {
       const now = performance.now();
       const currentFrame = ref.getCurrentFrame();
+      const seekId = useEditor.getState().seekRequest.id;
+      if(seekId !== lastSeek || document.body.classList.contains('timeline-scrubbing')) {
+        lastSeek = seekId; stalledSince = now; healthySince = now; lastFrame = currentFrame; recovering = false;
+        setStatus('ready'); return;
+      }
       // Background tabs deliberately throttle playback. Do not keep reloading them.
       if(document.hidden) {stalledSince = now; healthySince = now; lastFrame = currentFrame; return;}
-      const healthy = !buffering && (!useEditor.getState().playing || currentFrame !== lastFrame);
+      const mediaReady = visiblePreviewVideos(ref.getContainerNode()).every(video => !video.error && !video.seeking && video.readyState >= 2);
+      const healthy = mediaReady && !buffering && (!useEditor.getState().playing || currentFrame !== lastFrame);
       lastFrame = currentFrame;
       if(healthy) {
         recovering = false;
@@ -79,6 +96,9 @@ export function usePreviewPlayback(identity: string, muted: boolean) {
       setGeneration(value => value + 1);
     }, 500);
     return () => {
+      queue.cancel();
+      for(const name of readyEvents) container?.removeEventListener(name, queue.ready, true);
+      if(seekQueue.current === queue) seekQueue.current = null;
       clearInterval(watchdog);
       ref.removeEventListener('frameupdate', update);
       ref.removeEventListener('pause', pause);
@@ -90,10 +110,10 @@ export function usePreviewPlayback(identity: string, muted: boolean) {
   }, [playerKey]);
 
   // Only explicit seeks drive the clock. Playback updates never seek the player.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const ref = player.current; if(!ref) return;
-    if(ref.getCurrentFrame() !== seekRequest.frame) {pendingSeek.current = seekRequest.frame; ref.seekTo(seekRequest.frame);}
-    else pendingSeek.current = null;
+    if(ref.getCurrentFrame() !== seekRequest.frame) {pendingSeek.current = seekRequest.frame; seekQueue.current?.seek(seekRequest.frame);}
+    else {pendingSeek.current = null; seekQueue.current?.cancel();}
   }, [seekRequest]);
   useEffect(() => {
     const ref = player.current; if(!ref) return;

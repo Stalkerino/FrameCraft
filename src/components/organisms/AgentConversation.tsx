@@ -1,3 +1,4 @@
+import {agentProviderNames} from '../../../shared/agent-providers';
 import {useEffect, useMemo, useRef} from 'react';
 import {LoaderCircle, Sparkles} from 'lucide-react';
 import {useAgent} from '../../stores/agent-store';
@@ -11,7 +12,7 @@ import {AgentActivityItem} from '../molecules/AgentActivityItem';
 
 export function AgentConversation() {
   const {session, online, pending, error, start} = useAgent();
-  const providerName = session.provider === 'ollama' ? 'Ollama' : 'Codex';
+  const providerName = agentProviderNames[session.provider ?? 'codex'];
   const entries = useMemo(() => agentConversationEntries(session), [session.messages, session.activity]);
   const viewport = useRef<HTMLDivElement>(null); const stick = useRef(true);
   useEffect(() => {if(stick.current && viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;}, [entries, session.requests, session.status]);

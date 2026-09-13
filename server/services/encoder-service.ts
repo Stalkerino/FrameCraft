@@ -1,17 +1,43 @@
 import {readdir, readFile} from 'node:fs/promises';
 import path from 'node:path';
-import {exportSettingsSchema, type ExportSettings} from '../../shared/media-settings';
+import type {ExportSettings} from '../../shared/media-settings';
 import type {EncoderCapabilities, GpuVendor} from '../../shared/encoding';
 import {ffmpegPath, runProcess} from './process-service';
 import {bundledRenderBinary, resolveExecutable} from './render-binaries-service';
 import {hardwareEncodingArguments, type HardwareEncoder} from './encoding-arguments';
+import {gpuDisabled} from './rendering/gpu-policy';
+import {VulkanPipelineService} from './rendering/vulkan-pipeline-service';
 
 interface Detection {encoder?: HardwareEncoder; reason?: string}
 
 export class EncoderService {
+  private vulkan = new VulkanPipelineService();
   private capabilitiesCache = new Map<string, {expires: number; value: Promise<EncoderCapabilities>}>();
 
-  capabilities(codec: ExportSettings['codec']) {
+  /** Background proxies inspect hardware metadata only; no synthetic encodes. */
+  async previewCandidates(): Promise<HardwareEncoder[]> {
+    if(gpuDisabled() || process.env.FRAMECRAFT_PROXY_ENCODER === 'cpu') return [];
+    const preferred = process.env.FRAMECRAFT_PROXY_ENCODER;
+    const vendors = new Set<string>();
+    if(preferred === 'amd' || preferred === 'nvidia') vendors.add(preferred);
+    else if(process.platform === 'linux') {
+      for(const name of await readdir('/sys/class/drm').catch(() => [] as string[])) {
+        if(!/^renderD\d+$/.test(name)) continue;
+        const vendor = (await readFile(path.join('/sys/class/drm', name, 'device/vendor'), 'utf8').catch(() => '')).trim();
+        if(vendor === '0x1002') vendors.add('amd');
+        if(vendor === '0x10de') vendors.add('nvidia');
+      }
+    } else if(process.platform === 'win32') {
+      const devices = await runProcess('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty PNPDeviceID'], 10000).catch(() => '');
+      if(/VEN_1002/i.test(devices)) vendors.add('amd');
+      if(/VEN_10DE/i.test(devices)) vendors.add('nvidia');
+    }
+    if(!vendors.size) return [];
+    return (await this.candidates('h264')).candidates.filter(candidate => vendors.has(candidate.vendor));
+  }
+
+  capabilities(codec: ExportSettings['codec'], renderer: ExportSettings['renderer'] = 'compatible') {
+    if(renderer === 'native-vulkan') return this.vulkan.capabilities(codec);
     const cached = this.capabilitiesCache.get(codec);
     if(cached && cached.expires > Date.now()) return cached.value;
     const value = this.inspect(codec);
@@ -20,8 +46,24 @@ export class EncoderService {
     return value;
   }
 
+  /** Metadata only. Native engines select a complete adapter without invoking
+   * compatibility probes that upload CPU-generated frames or retry on hardware.
+   */
+  async nativeCandidates(settings: ExportSettings): Promise<HardwareEncoder[]> {
+    if(gpuDisabled()) throw new Error('GPU use is disabled in this process (FRAMECRAFT_DISABLE_GPU=1).');
+    if(settings.encoder !== 'amd' && settings.encoder !== 'nvidia') throw new Error('Choose AMD or NVIDIA for native GPU rendering.');
+    const {candidates, reason} = await this.candidates(settings.codec);
+    const selected = candidates.filter(candidate => candidate.vendor === settings.encoder);
+    if(!selected.length) throw new Error(reason || `No ${settings.encoder.toUpperCase()} encoder is listed for ${settings.codec}. Install a compatible FFmpeg build and GPU driver; FFMPEG_PATH selects the executable.`);
+    return selected;
+  }
+
   async select(settings: ExportSettings): Promise<{encoder?: HardwareEncoder; label: string; warning?: string}> {
     if(settings.encoder === 'cpu') return {label: 'CPU'};
+    if(gpuDisabled()) {
+      if(settings.encoder !== 'auto') throw new Error('GPU use is disabled in this process (FRAMECRAFT_DISABLE_GPU=1).');
+      return {label: 'CPU', warning: 'GPU use is disabled in this process.'};
+    }
     const {candidates, reason} = await this.candidates(settings.codec);
     const vendors: GpuVendor[] = settings.encoder === 'auto' ? ['nvidia', 'amd'] : [settings.encoder];
     const failures: string[] = [];
@@ -35,14 +77,18 @@ export class EncoderService {
   }
 
   private async inspect(codec: ExportSettings['codec']): Promise<EncoderCapabilities> {
+    if(gpuDisabled()) return {codec, verification: 'not-run', encoders: (['amd', 'nvidia'] as const).map(id => ({
+      id, label: id === 'amd' ? 'AMD GPU' : 'NVIDIA NVENC', available: false, reason: 'GPU use is disabled in this process.',
+    }))};
     const {candidates, reason} = await this.candidates(codec);
-    const settings = exportSettingsSchema.parse({width: 128, height: 128, fps: 30, codec, audio: false});
     const encoders = [];
     for(const id of ['amd', 'nvidia'] as const) {
-      const detected = await this.detect(candidates.filter(candidate => candidate.vendor === id), settings, reason);
-      encoders.push({id, label: detected.encoder?.label || (id === 'amd' ? 'AMD GPU' : 'NVIDIA NVENC'), available: Boolean(detected.encoder), encoder: detected.encoder?.name, reason: detected.reason});
+      const candidate = candidates.find(candidate => candidate.vendor === id);
+      encoders.push({id, label: candidate?.label || (id === 'amd' ? 'AMD GPU' : 'NVIDIA NVENC'), available: Boolean(candidate), encoder: candidate?.name,
+        reason: candidate ? 'Encoder listed by FFmpeg. GPU and driver compatibility are checked only when an export is requested.'
+          : reason || 'No encoder candidate found in the installed FFmpeg builds and device metadata.'});
     }
-    return {codec, encoders};
+    return {codec, verification: 'not-run', encoders};
   }
 
   private async candidates(codec: ExportSettings['codec']): Promise<{candidates: HardwareEncoder[]; reason?: string}> {

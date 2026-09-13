@@ -64,4 +64,10 @@ export class SoundLibraryService {
       throw error;
     }
   }
+  /** Prepare shared library audio for a larger atomic timeline edit. The
+   * caller owns revision validation, placement and the single undo batch. */
+  async prepareAsset(projectId:string,input:z.infer<typeof soundPreviewSchema>) {
+    const preview=await this.preview(input);const sound=this.library.get(input.id);
+    return this.media.import(this.audioPath(preview.src.split('/').at(-1)!),`${sound.definition.name}.wav`,projectId);
+  }
 }

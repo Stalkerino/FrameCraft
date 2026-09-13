@@ -7,6 +7,14 @@ const project = {id: 'project-1', name: 'Devlog', revision: 305, fps: 60, width:
 const report = {id: reportId, assetId: 'asset-1', duration: 357.7, moments: Array.from({length: 45}, (_, i) => ({time: i * 7.5})), cues: []};
 const sheet = {reportId, columns: 4, frames: [{index: 1, time: 99.5, timecode: '00:01:39.500'}, {index: 2, time: 106.5, timecode: '00:01:46.500'}]};
 
+it('retains the active sequence after switching and restoring local-agent memory', () => {
+  const state = new OllamaWorkState();
+  state.observe('get_project', {}, {project: {...project, sequenceId: 'main', sequenceName: 'Main'}});
+  state.observe('manage_sequences', {}, {project: {...project, revision: 306, sequenceId: 'short', sequenceName: 'Short version', fps: 24}});
+  const restored = new OllamaWorkState(); restored.restore(state.serialize());
+  expect(restored.serialize().project).toMatchObject({id: project.id, sequenceId: 'short', sequenceName: 'Short version', fps: 24, revision: 306});
+});
+
 it('projects complete project and report identifiers, units and object references instead of clipped JSON', () => {
   const state = new OllamaWorkState();
   const result = state.observe('get_project', {}, {project: {...project, clips: Array.from({length: 30}, (_, i) => ({...project.clips[0], id: `clip-${i}`}))}, canUndo: true, context: {playhead: 27}}, archive)!;

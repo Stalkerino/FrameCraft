@@ -1,7 +1,8 @@
+import {trackMixSchema} from './audio-mixer-settings';
 import {z} from 'zod';
 import type {Clip, Project} from './project';
 export const trackTypeSchema = z.enum(['visual', 'text', 'audio']);
-export const trackSchema = z.object({id: z.string().min(1).max(100), type: trackTypeSchema, name: z.string().trim().min(1).max(60), muted: z.boolean().default(false), hidden: z.boolean().default(false)});
+export const trackSchema = z.object({id: z.string().min(1).max(100), type: trackTypeSchema, name: z.string().trim().min(1).max(60), muted: z.boolean().default(false), hidden: z.boolean().default(false), mix: trackMixSchema.nullable().optional()});
 export type Track = z.infer<typeof trackSchema>;
 export const defaultTracks: Track[] = [
   {id: 'text', type: 'text', name: 'Text 1', muted: false, hidden: false},

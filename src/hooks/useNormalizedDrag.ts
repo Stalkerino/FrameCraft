@@ -16,11 +16,11 @@ export function useNormalizedDrag(svg: RefObject<SVGSVGElement | null>, revision
       if(next.pointerId !== pointerId || (!latest && Math.hypot(next.clientX - startX, next.clientY - startY) < 3)) return;
       latest = transform(point(next.clientX, next.clientY), start); preview(latest);
     };
-    const cleanup = () => {window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', abort); window.removeEventListener('keydown', escape); window.removeEventListener('blur', abort); cancel.current = null;};
+    const cleanup = () => {window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', abort); window.removeEventListener('keydown', escape, true); window.removeEventListener('blur', abort); cancel.current = null;};
     const abort = () => {cleanup(); preview(null);};
     const end = (next: globalThis.PointerEvent) => {if(next.pointerId !== pointerId) return; cleanup(); if(latest !== null) commit(latest); preview(null);};
-    const escape = (next: KeyboardEvent) => {if(next.key === 'Escape') {next.preventDefault(); abort();}};
+    const escape = (next: KeyboardEvent) => {if(next.key === 'Escape') {next.preventDefault(); next.stopPropagation(); abort();}};
     cancel.current = abort;
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', abort); window.addEventListener('keydown', escape); window.addEventListener('blur', abort);
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', abort); window.addEventListener('keydown', escape, true); window.addEventListener('blur', abort);
   };
 }

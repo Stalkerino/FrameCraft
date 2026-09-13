@@ -1,3 +1,4 @@
+import {activeSequenceName} from '../../../shared/project-sequences';
 import {Download, FileCode2, FileJson, FolderOpen} from 'lucide-react';
 import {useState} from 'react';
 import type {Project} from '../../../shared/project';
@@ -9,7 +10,7 @@ export function TimelineExportDialog({project, onClose}: {project: Project; onCl
   const [original] = useState(project); const [mediaRoot, setMediaRoot] = useState(''); const editing = useTimelineExport(original);
   const result = editing.result;
   return <Dialog title="Export timeline" onClose={onClose}><div className="timeline-export">
-    <div className="timeline-export__intro"><FileCode2 size={26}/><div><h3>Continue editing in Premiere</h3><p>Download an editable sequence as Final Cut Pro 7 XML. Compatible editors can import its cuts and media references.</p></div></div>
+    <div className="timeline-export__intro"><FileCode2 size={26}/><div><h3>{activeSequenceName(original)} · Premiere XML</h3><p>Download an editable sequence as Final Cut Pro 7 XML. Compatible editors can import its cuts and media references.</p></div></div>
     <div className="timeline-export__format"><strong>Premiere-compatible XML</strong><span>.xml · Final Cut Pro 7 / XMEML 5</span></div>
     <p className="field-help">This transfers the edit structure. It does not create a .prproj file or render a finished video. Custom titles, masks, grading and transitions need rebuilding; the report identifies affected clips.</p>
     <details className="settings-disclosure"><summary><FolderOpen size={14}/> Media location on the destination computer</summary><div>

@@ -21,11 +21,19 @@ test('marquee selects across tracks, moves, copies and deletes a group with undo
   await page.mouse.move(Math.max(a.x + a.width, b.x + b.width) + 10, Math.max(a.y + a.height, b.y + b.height) + 5, {steps: 8});
   await expect(page.locator('.timeline-marquee')).toBeVisible(); await page.mouse.up();
   await expect(first).toHaveAttribute('aria-pressed', 'true'); await expect(second).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Control+g');
+  await expect.poll(async () => {
+    const clips = (await snapshot()).clips;
+    return !!clips[0].groupId && clips[0].groupId === clips[1].groupId;
+  }).toBe(true);
   await page.keyboard.down('Alt'); await page.mouse.move(a.x + 25, a.y + 12); await page.mouse.down(); await page.mouse.move(a.x + 73, a.y + 12, {steps: 5}); await page.mouse.up(); await page.keyboard.up('Alt');
   await expect.poll(async () => (await snapshot()).clips.map((c: {start: number}) => c.start)).toEqual([120, 150]);
   await expect(page.getByRole('button', {name: 'Undo timeline edit (Ctrl+Z)', exact: true})).toBeEnabled(); await page.keyboard.press('Control+z'); await expect.poll(async () => (await snapshot()).clips.map((c: {start: number}) => c.start)).toEqual([90, 120]);
   await page.keyboard.press('Control+c'); await expect(page.getByRole('button', {name: 'Paste clip at playhead (Ctrl+V)', exact: true})).toBeEnabled(); await page.keyboard.press('Control+v');
   await expect.poll(async () => (await snapshot()).clips.length).toBe(4);
+  const copies = (await snapshot()).clips;
+  expect(copies[2].groupId).toBe(copies[3].groupId);
+  expect(copies[2].groupId).not.toBe(copies[0].groupId);
   await expect(page.getByRole('button', {name: 'Delete selected clip', exact: true})).toBeEnabled(); await page.keyboard.press('Delete'); await expect.poll(async () => (await snapshot()).clips.length).toBe(2);
   await expect(page.getByRole('button', {name: 'Undo timeline edit (Ctrl+Z)', exact: true})).toBeEnabled(); await page.keyboard.press('Control+z'); await expect.poll(async () => (await snapshot()).clips.length).toBe(4);
 });

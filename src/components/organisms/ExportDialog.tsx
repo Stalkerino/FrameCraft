@@ -1,7 +1,10 @@
+import {activeSequenceName, sequenceAssets} from '../../../shared/project-sequences';
 import {useMemo, useState} from 'react';
 import {Player} from '@remotion/player';
 import {Download, Film} from 'lucide-react';
-import {audioCodecsFor, codecNames, defaultExportSettings, exportSettingsSchema, extensionFor, recommendedVideoBitrate, type ExportSettings} from '../../../shared/media-settings';
+import {audioCodecsFor, codecNames, exportSettingsSchema, extensionFor, recommendedVideoBitrate, type ExportSettings} from '../../../shared/media-settings';
+import {initialExportPipeline} from '../../../shared/export-pipeline';
+import {exportPreferences} from '../../services/export-preferences';
 import {exportQualityPresets} from '../../../shared/output-quality';
 import {durationOf, type Project} from '../../../shared/project';
 import {reframeProject} from '../../../shared/project-settings';
@@ -13,19 +16,35 @@ import {Field} from '../atoms/Field';
 import {Button} from '../atoms/Button';
 import {ResolutionFields} from '../molecules/ResolutionFields';
 import {EncoderSettings} from '../molecules/EncoderSettings';
+import {RenderPlanSummary} from '../molecules/RenderPlanSummary';
 import {SourceMatchControl} from '../molecules/SourceMatchControl';
 import {SettingsSection} from '../molecules/SettingsSection';
+import {nativeGpuPlan} from '../../../shared/native-gpu-plan';
+import {nativeScenePlan} from '../../../shared/native-scene-plan';
+import {useExportDestination} from '../../hooks/useExportDestination';
+import {ExportDestination} from '../molecules/ExportDestination';
 
 export function ExportDialog({project, onClose}: {project: Project; onClose: () => void}) {
   const [original] = useState(project);
-  const [settings, setSettings] = useState<ExportSettings>(() => defaultExportSettings(project));
+  const [settings, setSettings] = useState<ExportSettings>(() => initialExportPipeline(project, exportPreferences.read(project.id)));
+  const destination = useExportDestination(original.id, settings.codec);
   const [error, setError] = useState('');
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
   const frame = useEditor(s => s.frame);
-  const {sources, pendingPreviews, onSourceError} = useMediaPlaybackSources(original.assets.filter(asset => original.clips.some(clip => clip.assetId === asset.id)));
-  const patch = (value: Partial<ExportSettings>) => setSettings(current => ({...current, ...value}));
+  const {sources, pendingPreviews, onSourceError} = useMediaPlaybackSources(sequenceAssets(original));
+  const patch = (value: Partial<ExportSettings>) => setSettings(current => {
+    const next = {...current, ...value};
+    if(value.renderer !== undefined || value.encoder !== undefined) exportPreferences.save(original.id, next);
+    return next;
+  });
   const parsed = exportSettingsSchema.safeParse(settings);
+  const nativeBlockers = useMemo(() => {
+    if(settings.renderer === 'compatible') return [];
+    const value = exportSettingsSchema.safeParse(settings);
+    if(!value.success) return [];
+    try {return (settings.renderer === 'native-vulkan' ? nativeScenePlan(original, value.data) : nativeGpuPlan(original, value.data)).blockers;} catch {return [];}
+  }, [original, settings]);
   const duration = durationOf(original) / original.fps;
   const {preview, previewError} = useMemo(() => {
     try {return {preview: reframeProject(original, settings.fps), previewError: ''};}
@@ -40,19 +59,27 @@ export function ExportDialog({project, onClose}: {project: Project; onClose: () 
   const submit = async () => {
     if(!parsed.success) {setError(parsed.error.issues[0].message); return;}
     if(previewError) {setError(previewError); return;}
+    if(nativeBlockers.length) {setError(nativeBlockers[0].message); return;}
     if(settings.startSeconds >= duration || (settings.endSeconds ?? duration) > duration + .000001) {setError('Choose an export range inside the timeline.'); return;}
     if(useEditor.getState().snapshot?.project.revision !== original.revision) {setError('The timeline changed. Reopen export settings to use the latest version.'); return;}
     setBusy(true);
     try {
       if(remember && !await useEditor.getState().execute([{type: 'project.export-settings', settings}], 'Saved project export preset', original.revision)) return;
-      await useEditor.getState().render('video', settings);
+      await useEditor.getState().render('video', settings, destination.outputPath || undefined);
+      if(useEditor.getState().error) {setError(useEditor.getState().error!); return;}
       onClose();
     } finally {setBusy(false);}
   };
   return <Dialog title="Export settings" onClose={onClose}><form className="settings-form export-form" onSubmit={event => {event.preventDefault(); void submit();}}>
     <div className="export-preview">{preview && inputProps && parsed.success && <Player component={ProjectComposition} inputProps={inputProps} durationInFrames={durationOf(preview)} compositionWidth={settings.width} compositionHeight={settings.height} fps={settings.fps} initialFrame={Math.min(durationOf(preview) - 1, Math.round(frame / original.fps * settings.fps))} style={{height: 180, maxWidth: '100%', aspectRatio: `${settings.width}/${settings.height}`}} controls={false} clickToPlay={false} initiallyMuted acknowledgeRemotionLicense/>}
-      <div className="export-summary"><Film size={17}/><strong>{settings.width} × {settings.height}</strong><span>{settings.fps} fps</span><span>{extension.toUpperCase()}</span><span>{rangeDuration.toFixed(1)} s</span>{estimatedMb !== null && <span>≈ {estimatedMb.toFixed(0)} MB</span>}</div>
+      <div className="export-summary"><Film size={17}/><span>{activeSequenceName(original)}</span><strong>{settings.width} × {settings.height}</strong><span>{settings.fps} fps</span><span>{extension.toUpperCase()}</span><span>{rangeDuration.toFixed(1)} s</span>{estimatedMb !== null && <span>≈ {estimatedMb.toFixed(0)} MB</span>}</div>
     </div>
+    <ExportDestination destination={destination}/>
+    <SettingsSection title="Processing engine" description="Choose how video is decoded, composed and encoded.">
+      <EncoderSettings settings={settings} onChange={patch}/>
+      {nativeBlockers.length > 0 && <p role="alert" className="agent-inline-error">{nativeBlockers[0].clipName && `${nativeBlockers[0].clipName}: `}{nativeBlockers[0].message}{nativeBlockers.length > 1 && ` ${nativeBlockers.length - 1} more in Processing plan.`}</p>}
+      {parsed.success && <RenderPlanSummary project={original} settings={parsed.data}/>}
+    </SettingsSection>
     <SettingsSection title="Output resolution" description="Exports always read the original imported footage.">
       <SourceMatchControl project={original} value={settings} onChange={patch}/>
       <ResolutionFields value={settings} onChange={patch}/>
@@ -67,7 +94,6 @@ export function ExportDialog({project, onClose}: {project: Project; onClose: () 
         </div>
         {settings.qualityMode === 'bitrate' && <div className="settings-bitrate-help"><p className="field-help">Suggested starting point for detailed gameplay at this resolution and frame rate: {recommendedBitrate} Mbps. Actual needs vary by footage and encoder.</p><Button type="button" onClick={() => patch({videoBitrate: recommendedBitrate})}>Use {recommendedBitrate} Mbps</Button></div>}
       </>}
-      <EncoderSettings settings={settings} onChange={patch}/>
     </SettingsSection>
     <details className="settings-disclosure"><summary>Audio <span>{settings.audio ? `${settings.audioCodec.toUpperCase()} · ${settings.sampleRate / 1000} kHz` : 'Muted'}</span></summary><div>
       <label className="settings-checkbox"><input type="checkbox" checked={settings.audio} onChange={event => patch({audio: event.target.checked})}/> Include audio</label>
@@ -79,6 +105,6 @@ export function ExportDialog({project, onClose}: {project: Project; onClose: () 
     </div></details>
     <label className="settings-checkbox"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/> Remember these export settings for this project</label>
     {(error || (!parsed.success && parsed.error.issues[0].message) || previewError) && <p className="agent-inline-error" role="alert">{error || (!parsed.success && parsed.error.issues[0].message) || previewError}</p>}
-    <div className="settings-actions"><Button type="button" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary" icon={<Download size={15}/>} disabled={busy || !parsed.success}>{busy ? 'Starting export…' : 'Export now'}</Button></div>
+    <div className="settings-actions"><Button type="button" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary" icon={<Download size={15}/>} disabled={busy || !parsed.success || nativeBlockers.length > 0}>{busy ? 'Starting export…' : 'Export now'}</Button></div>
   </form></Dialog>;
 }

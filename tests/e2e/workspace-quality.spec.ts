@@ -18,6 +18,9 @@ test('resizable editing workflow retains full-resolution playback and source-mat
   expect(asset).toMatchObject({width: 1536, height: 864, fps: 12});
   const caches = await (await request.get('/api/media/previews')).json();
   expect(caches[`${asset.id}:high`].status).toBe('idle');
+  expect(['queued', 'running', 'ready']).toContain(caches[asset.id].status);
+  expect(current.project.clips).toHaveLength(0);
+  await expect.poll(async () => (await (await request.get('/api/media/previews')).json())[asset.id].status, {timeout: 20000}).toBe('ready');
   const added = await request.post('/api/commands', {data: {revision: current.project.revision, commands: [
     {type: 'clip.add', clip: clipSchema.parse({id: 'quality-video', name: 'Gameplay capture', assetId: asset.id, kind: 'video', track: 'visual', start: 0, duration: 24})},
     {type: 'clip.add', clip: clipSchema.parse({id: 'quality-title', name: 'Chapter title', kind: 'text', track: 'text', start: 0, duration: 24, text: 'BUILD 014 / GAMEPLAY', fontSize: 44, y: 75, animation: 'none'})},
@@ -29,8 +32,25 @@ test('resizable editing workflow retains full-resolution playback and source-mat
   await expect(video).toHaveAttribute('src', /preview-full-v1\.mp4/);
   await expect(page.locator('.preview__source-quality')).toContainText('1536 × 864');
   expect((await snapshot()).project.revision).toBe((await added.json()).project.revision);
+  await page.getByRole('combobox', {name: 'Playback quality'}).selectOption('proxy-360');
+  await expect(video).toHaveAttribute('src', /preview-360p-intra-v1\.mp4/, {timeout: 30000});
+  await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState >= 2 && element.videoWidth)).toBe(640);
+  const proxyState = (await (await request.get('/api/media/previews')).json())[`${asset.id}:proxy-360`];
+  const proxyFile = path.join(directory, 'editing-proxy.mp4');
+  await writeFile(proxyFile, await (await request.get(proxyState.src)).body());
+  const proxyProbe = JSON.parse(execFileSync(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_frames', '-show_entries', 'frame=key_frame,pict_type,best_effort_timestamp_time', '-of', 'json', proxyFile], {encoding: 'utf8'}));
+  expect(proxyProbe.frames).toHaveLength(12);
+  expect(proxyProbe.frames.every((frame: {key_frame: number; pict_type: string}) => frame.key_frame === 1 && frame.pict_type === 'I')).toBe(true);
+  expect(Number(proxyProbe.frames[11].best_effort_timestamp_time)).toBeCloseTo(11 / 12, 5);
+  await page.reload();
+  await expect(page.getByRole('combobox', {name: 'Playback quality'})).toHaveValue('proxy-360');
+  await expect.poll(() => video.getAttribute('src').then(src => src?.split('#')[0])).toBe(proxyState.src);
+  expect((await snapshot()).project.assets[0].src).toBe(asset.src);
   const fullWidth = (await page.locator('.preview').boundingBox())!.width;
-  await page.getByRole('button', {name: 'Review', exact: true}).click();
+  await expect(page.getByRole('button', {name: 'Review', exact: true})).toHaveCount(0);
+  await expect(page.getByRole('button', {name: 'AI edit', exact: true})).toHaveCount(0);
+  await page.getByRole('button', {name: 'Toggle media panel', exact: true}).click();
+  await page.getByRole('button', {name: 'Toggle properties and Codex panel', exact: true}).click();
   await expect.poll(async () => (await page.locator('.preview').boundingBox())!.width).toBeGreaterThan(fullWidth + 300);
   await page.getByRole('button', {name: 'Edit', exact: true}).click();
   const handle = page.getByRole('separator', {name: 'Resize media panel'}); const handleBox = (await handle.boundingBox())!;
@@ -45,15 +65,23 @@ test('resizable editing workflow retains full-resolution playback and source-mat
   await expect(page.getByRole('button', {name: 'Snap clips (N)'})).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('n');
   await expect(page.getByRole('button', {name: 'Snap clips (N)'})).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', {name: 'Go to beginning', exact: true}).click();
   await page.getByRole('button', {name: `Preview ${asset.name}`, exact: true}).click();
   await expect(page.getByRole('dialog', {name: asset.name})).toBeVisible();
+  await page.getByRole('button', {name: 'Insert at playhead', exact: true}).click();
+  await expect.poll(async () => (await snapshot()).project.clips.length).toBe(3);
   await page.getByRole('button', {name: `Close ${asset.name.toLowerCase()}`, exact: true}).click();
+  await page.getByRole('button', {name: 'Undo timeline edit (Ctrl+Z)', exact: true}).click();
+  await expect.poll(async () => (await snapshot()).project.clips.length).toBe(2);
   expect((await snapshot()).project.clips).toHaveLength(2);
   await page.locator('[data-clip-id="quality-title"]').click();
   await page.screenshot({path: path.join(directory, 'editor-1280.png')});
   expect(await page.locator('.editor-layout').evaluate(element => element.getBoundingClientRect().right <= innerWidth && element.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
   await page.getByRole('button', {name: 'Export video', exact: true}).click();
   const dialog = page.getByRole('dialog', {name: 'Export settings'});
+  await expect(dialog.getByRole('textbox', {name: 'Export file path'})).toHaveValue(/[\\/]projects[\\/][a-f0-9]{64}[\\/]exported[\\/].+\.mp4$/);
+  const chosenOutput = path.join(directory, `custom export ${Date.now()}.mp4`);
+  await dialog.getByRole('textbox', {name: 'Export file path'}).fill(chosenOutput);
   await dialog.getByRole('button', {name: 'Match source', exact: true}).click();
   await expect(dialog.getByRole('spinbutton', {name: 'Width (px)', exact: true})).toHaveValue('1536');
   await expect(dialog.getByRole('spinbutton', {name: 'Frame rate (fps)', exact: true})).toHaveValue('12');
@@ -66,6 +94,8 @@ test('resizable editing workflow retains full-resolution playback and source-mat
   const job = await (await jobResponse).json();
   await expect.poll(async () => (await (await request.get(`/api/render/${job.id}`)).json()).status, {timeout: 90000}).toMatch(/done|error/);
   const done = await (await request.get(`/api/render/${job.id}`)).json(); expect(done.status, done.error).toBe('done');
+  expect(done.outputPath).toBe(chosenOutput);
+  expect((await (await request.get(`/api/render/${job.id}/output`)).json()).path).toBe(chosenOutput);
   const output = path.join(directory, 'quality-export.mp4'); await writeFile(output, await (await request.get(done.url)).body());
   const probe = JSON.parse(execFileSync(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,nb_read_frames,r_frame_rate', '-of', 'json', output], {encoding: 'utf8'}));
   expect(probe.streams[0]).toMatchObject({width: 1536, height: 864, r_frame_rate: '12/1', nb_read_frames: '6'});

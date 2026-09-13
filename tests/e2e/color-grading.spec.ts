@@ -10,7 +10,7 @@ import {clipSchema, type Project} from '../../shared/project';
 test('grades footage and opacity through MCP/UI with matching browser and native export pixels', async ({page, request}) => {
   const project = async (): Promise<Project> => (await (await request.get('/api/project')).json()).project;
   const p = await project();
-  await request.post('/api/commands', {data: {revision: p.revision, commands: [{type: 'project.clear'}, {type: 'project.settings', settings: {width: 320, height: 180, fps: 30, backgroundColor: '#202020'}}]}});
+  await request.post('/api/commands', {data: {revision: p.revision, commands: [{type: 'project.clear'}, {type: 'project.color-grade', grade: null}, {type: 'project.settings', settings: {width: 320, height: 180, fps: 30, backgroundColor: '#202020'}}]}});
   const directory = path.resolve('.cache/e2e-grade-input'); await mkdir(directory, {recursive: true});
   const source = path.join(directory, 'gray-source.mp4');
   execFileSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x505050:s=320x180:r=30:d=1', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-threads', '1', '-an', '-y', source]);

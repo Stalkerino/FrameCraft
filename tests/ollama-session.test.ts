@@ -21,7 +21,7 @@ const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {for(const clean of cleanups.splice(0)) await clean(); vi.unstubAllGlobals(); mcpState.failAnalysis = false; mcpState.structuredImage = false; mcpState.calls = []; mcpState.savedCuts = [];});
 async function session() {
   const directory = await mkdtemp(path.join(tmpdir(), 'fc-ollama-test-'));
-  const service = new OllamaSessionService({root: process.cwd(), data: directory, url: 'http://localhost:4319'}, () => ({provider: 'ollama', ollamaUrl: 'http://ollama.test:11434', contextLength: 32768, workspaceAccess: 'disabled', workspacePath: ''}));
+  const service = new OllamaSessionService({root: process.cwd(), data: directory, url: 'http://localhost:4319'}, () => ({provider: 'ollama', ollamaUrl: 'http://ollama.test:11434', contextLength: 32768, workspaceAccess: 'disabled', workspacePath: '', cliAgents: {}}));
   cleanups.push(async () => {await service.interrupt(); service.close(); await rm(directory, {recursive: true, force: true});});
   return {directory, service};
 }

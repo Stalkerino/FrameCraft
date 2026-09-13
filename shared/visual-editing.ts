@@ -26,15 +26,19 @@ export type VisualKeyframes = z.infer<typeof visualKeyframesSchema>;
 export type VisualState = Record<VisualProperty, number>;
 
 const cubic = (t: number, a: number, b: number) => 3 * (1 - t) ** 2 * t * a + 3 * (1 - t) * t * t * b + t ** 3;
+export const visualBezierIterations = 32;
+export function visualEasingCurve(key: Pick<VisualKeyframe, 'easing' | 'bezier'>) {
+  return key.easing === 'bezier' ? key.bezier! : key.easing === 'ease-in' ? {x1: .42, y1: 0, x2: 1, y2: 1} : key.easing === 'ease-out' ? {x1: 0, y1: 0, x2: .58, y2: 1} : {x1: .42, y1: 0, x2: .58, y2: 1};
+}
 /** Invert monotonic Bézier time; y may overshoot, values clamp to the property range. */
 export function easeVisualProgress(progress: number, key: Pick<VisualKeyframe, 'easing' | 'bezier'>): number {
   const t = Math.max(0, Math.min(1, progress));
   if(t === 0 || t === 1) return t;
   if(key.easing === 'hold') return 0;
   if(key.easing === 'linear') return t;
-  const curve = key.easing === 'bezier' ? key.bezier! : key.easing === 'ease-in' ? {x1: .42, y1: 0, x2: 1, y2: 1} : key.easing === 'ease-out' ? {x1: 0, y1: 0, x2: .58, y2: 1} : {x1: .42, y1: 0, x2: .58, y2: 1};
+  const curve = visualEasingCurve(key);
   let low = 0; let high = 1;
-  for(let iteration = 0; iteration < 32; iteration++) {const middle = (low + high) / 2; if(cubic(middle, curve.x1, curve.x2) < t) low = middle; else high = middle;}
+  for(let iteration = 0; iteration < visualBezierIterations; iteration++) {const middle = (low + high) / 2; if(cubic(middle, curve.x1, curve.x2) < t) low = middle; else high = middle;}
   return cubic((low + high) / 2, curve.y1, curve.y2);
 }
 

@@ -3,10 +3,12 @@ import path from 'node:path';
 import {browserExecutable} from './browser-service';
 import {remotionRenderer} from './remotion-encoder-adapter';
 import type {HardwareEncoder} from './encoding-arguments';
+import {gpuDisabled} from './rendering/gpu-policy';
 
 interface GpuInfo {gpu: {auxAttributes?: {glRenderer?: string}; featureStatus?: Record<string, string>}}
 
 export function renderBrowserGl(platform: NodeJS.Platform, hardware?: HardwareEncoder): 'angle-egl' | 'angle' | 'swangle' {
+  if(gpuDisabled()) return 'swangle';
   return platform === 'linux' ? hardware ? 'angle-egl' : 'swangle' : 'angle';
 }
 

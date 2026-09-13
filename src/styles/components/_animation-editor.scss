@@ -1,0 +1,23 @@
+.animation-dialog {width: min(1140px, 94vw); .settings-dialog__heading {padding: 12px 18px; h2 {font-size: 14px;}}}
+.animation-editor {outline: none; &:focus-visible {outline: 1px solid var(--accent); outline-offset: 3px;}
+  &__heading {display: flex; align-items: end; flex-wrap: wrap; gap: 8px; > .field {flex: 1; min-width: 140px;} .button {font-size: 10px; padding: 7px 9px;}}
+  &__workspace {min-width: 0;}
+  &--expanded {padding: 16px 18px; .animation-editor__workspace {display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px;} .animation-curve > svg {height: min(46dvh, 410px); min-height: 220px;} .animation-key-controls {max-height: 58dvh; overflow-y: auto; padding-right: 4px;} .animation-editor__heading {max-width: 340px; margin-bottom: 12px;}}
+}
+.animation-curve {
+  > svg {height: 175px; overflow: hidden; user-select: none; cursor: crosshair;}
+  &__toolbar {display: flex; align-items: center; flex-wrap: wrap; gap: 3px; font-size: 10px; > button:not(.icon-button) {padding: 4px; color: var(--muted-strong);} .icon-button {width: 24px; height: 24px;} > label {margin-left: auto; display: flex; align-items: center; gap: 4px; color: var(--muted-strong);} input {accent-color: var(--accent);}}
+  &__key, &__tangent {stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; fill: var(--panel); cursor: grab; touch-action: none; &:active {cursor: grabbing;}}
+  &__key--selected {fill: var(--accent); stroke: var(--text);}
+  &__tangent {fill: #ffc978; stroke: var(--panel);}
+  &__marquee {fill: #64dcc520; stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none;}
+  &__outside {fill: #ffffff0a; pointer-events: none;}
+  &__hint {font-size: 10px; color: var(--muted-strong); line-height: 1.5; margin-top: 8px;}
+}
+.animation-key-controls {
+  &__toolbar {display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin: 8px 0; .icon-button {width: 25px; height: 26px;} .button {font-size: 10px; padding: 6px 8px;}}
+  &__presets {display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; button {font-size: 10px; border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; color: var(--muted-strong); &:hover:not(:disabled) {color: var(--accent); border-color: var(--accent);}}}
+  &__list {font-size: 10px; margin: 12px 0; summary {cursor: pointer; color: var(--muted-strong); padding: 6px 0;} > div {max-height: 160px; overflow-y: auto;} button {display: flex; width: 100%; gap: 12px; padding: 6px; color: var(--muted-strong); border: 1px solid transparent; border-radius: 4px; &.is-selected {border-color: var(--accent); background: var(--panel-raised); color: var(--text);}}}
+  > .button {font-size: 10px; padding: 6px 8px;}
+}
+@media (max-width: 760px) {.animation-editor--expanded .animation-editor__workspace {grid-template-columns: minmax(0, 1fr);} .animation-editor--expanded .animation-key-controls {max-height: none;}}

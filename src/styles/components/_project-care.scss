@@ -1,0 +1,15 @@
+.settings-dialog:has(.project-care) {width: min(760px, calc(100vw - 32px));}
+.project-care {padding: 16px; max-height: 75vh; overflow: auto; font-size: 12px;
+  > nav {display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+    button {padding: 9px 12px; color: var(--muted); border-bottom: 2px solid transparent; &[aria-pressed=true] {color: var(--accent); border-color: var(--accent);}}
+  }
+  &__section {display: grid; gap: 12px; > p, small {color: var(--muted); line-height: 1.5;} label > input[type=checkbox] {margin-right: 6px;}}
+  &__form, &__toolbar {display: flex; align-items: end; gap: 10px; .field {flex: 1;} > p {flex: 1;}}
+  &__list {display: grid; gap: 6px; article {display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 6px; padding: 10px; > div {flex: 1; min-width: 0;} small, strong {display: block;} strong {font-size: 12px;} small {margin-top: 4px;} button {flex-shrink: 0;}}}
+  &__list article.project-care__missing {border-color: #bd855b;}
+  &__path {overflow-wrap: anywhere; font-family: monospace; font-size: 10px;}
+  &__replacement {display: grid; gap: 10px; padding: 12px; background: var(--accent-soft); border-radius: 6px; p {line-height: 1.5;}}
+  progress {width: 100%; height: 5px; margin-top: 8px; accent-color: var(--accent);}
+}
+.project-recovery-notice {padding: 6px 10px; color: #e8c18f; background: #352b21; border: 1px solid #866643; border-radius: 4px; max-width: 320px; font-size: 10px;}
+@media (max-width: 600px) {.project-care__form, .project-care__list article {align-items: stretch; flex-direction: column;}}

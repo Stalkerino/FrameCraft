@@ -16,6 +16,8 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+src-tauri/target/
+src-tauri/gen/
 *.pem
 *.key
 *.p12

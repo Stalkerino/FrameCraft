@@ -31,7 +31,9 @@ export class MediaService {
       const duration = kind === 'image' ? 6 : Number(probe.format.duration || visual?.duration || sound?.duration);
       if(!Number.isFinite(duration) || duration <= 0) throw new Error('Could not determine media duration');
       const asset: Asset = {id, name: path.basename(originalName), kind, src: url, duration, width: visual?.width, height: visual?.height, videoCodec: kind === 'video' ? visual.codec_name : undefined};
+      if(kind !== 'audio') asset.colorMetadata = {matrix:visual.color_space,transfer:visual.color_transfer,primaries:visual.color_primaries,range:visual.color_range,pixelFormat:visual.pix_fmt};
       if(kind === 'video') {
+        asset.hasAudio = !!sound;
         for(const rate of [visual?.avg_frame_rate, visual?.r_frame_rate]) {
           const [numerator, denominator = 1] = String(rate || '').split('/').map(Number);
           const fps = numerator / denominator;

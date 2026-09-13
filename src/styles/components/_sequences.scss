@@ -1,0 +1,17 @@
+.sequence-select {min-width: 80px; max-width: 240px; padding: 3px 6px; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; text-overflow: ellipsis;}
+.sequences-dialog {padding: 16px; display: grid; gap: 14px; max-height: 75vh; overflow: auto; font-size: 12px;
+  p {color: var(--muted); line-height: 1.5; margin: 0;}
+  section {display: grid; gap: 10px; border-top: 1px solid var(--border); padding-top: 12px;}
+  h3 {font-size: 12px; margin: 0;}
+  &__actions {display: flex; flex-wrap: wrap; gap: 6px;}
+  &__confirm {padding: 10px; border: 1px solid var(--border); border-radius: 4px; > p {margin-bottom: 8px;} .button {margin-right: 6px;}}
+}
+
+.sequence-reference-actions {display: flex; gap: 6px; flex-wrap: wrap;}
+
+.sequence-insert-menu {position: relative;
+  &__items {position: absolute; bottom: calc(100% + 5px); right: 0; width: 260px; max-height: 260px; overflow: auto; padding: 8px; background: var(--panel, #20252c); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 24px #0006; z-index: 50;
+    p {font-size: 10px; color: var(--muted); margin: 0 0 6px;}
+    > button {display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; padding: 7px; text-align: left; font-size: 11px; cursor: grab; border-radius: 4px; &:hover, &:focus-visible {background: var(--accent-soft);} small {white-space: nowrap; color: var(--muted);}}
+  }
+}

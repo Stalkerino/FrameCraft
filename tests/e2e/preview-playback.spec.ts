@@ -21,6 +21,14 @@ test('plays and seeks trimmed cuts, releasing old decoders and recovering a stal
     ]}});
     expect(added.ok()).toBe(true);
     await page.goto('/'); await page.getByRole('button', {name: 'Go to beginning', exact: true}).click();
+    const waveformUrl = `/api/media/${current.project.assets[0].id}/waveform`;
+    await expect.poll(async () => (await (await request.get(waveformUrl)).json()).status, {timeout: 15000}).toBe('ready');
+    const waveform = (await (await request.get(waveformUrl)).json()).waveform;
+    expect(waveform.peaks.length).toBeGreaterThan(100);
+    expect(waveform.peaks.length).toBeLessThanOrEqual(100000);
+    expect(waveform.peaks.some((value: number) => value > .01)).toBe(true);
+    await page.getByRole('button', {name: 'Toggle audio meters'}).click();
+    await expect(page.getByRole('button', {name: 'Toggle audio meters'})).toHaveAttribute('aria-pressed', 'true');
     const video = page.locator('.preview__canvas video');
     await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState >= 2 && !element.seeking)).toBe(true);
     await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeCloseTo(2, 2);
@@ -34,6 +42,8 @@ test('plays and seeks trimmed cuts, releasing old decoders and recovering a stal
       }});
     });
     await page.getByRole('button', {name: 'Play', exact: true}).click();
+    await expect.poll(async () => Number(await page.getByRole('meter', {name: 'left audio peak'}).getAttribute('aria-valuenow'))).toBeGreaterThan(-60);
+    await expect.poll(async () => Number(await page.getByRole('meter', {name: 'right audio peak'}).getAttribute('aria-valuenow'))).toBeGreaterThan(-60);
     const started = await page.evaluate(() => performance.now());
     await page.waitForTimeout(6000);
     const timing = await page.locator('.preview .timecode').evaluate(element => {
@@ -52,6 +62,19 @@ test('plays and seeks trimmed cuts, releasing old decoders and recovering a stal
     await page.keyboard.press('ArrowRight');
     await expect(page.locator('.preview .timecode')).toContainText('00:00:01');
     await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeCloseTo(2 + 1 / 60, 2);
+    // Rapid scrubbing must finish on the last target, including backwards seeks.
+    const ruler = (await page.locator('.ruler-area').boundingBox())!;
+    const handle = (await page.locator('.playhead__handle').boundingBox())!;
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + 5); await page.mouse.down();
+    await expect(page.locator('body')).toHaveClass(/timeline-scrubbing/);
+    for(const x of [200, 80, 400, 120, 320, 48]) await page.mouse.move(ruler.x + x, ruler.y + 10);
+    await page.mouse.up();
+    await expect(page.locator('body')).not.toHaveClass(/timeline-scrubbing/);
+    expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('');
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState >= 2 && !element.seeking)).toBe(true);
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeCloseTo(3, 2);
+    await page.getByRole('button', {name: 'Go to beginning', exact: true}).click();
+    await page.getByRole('button', {name: 'Next frame', exact: true}).click();
     // A real failed media request must recover without refreshing the page or editing the timeline.
     let failedRequest = false;
     await page.route('**/project-media/**/media/**.mp4', async route => {

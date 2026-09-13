@@ -52,6 +52,13 @@ test('edits synchronized sections, places saved SFX and exports fades with proce
     expect((await project()).clips.find(clip => clip.id === 'camera-top')?.audioEnvelope?.keyframes).toContainEqual({frame: 45, value: .25});
     await call('undo_redo', {revision: (await project()).revision, direction: 'undo'});
     const effects = {equalizer: {low: 2, mid: -1, high: 1}, compressor: {threshold: -18, ratio: 3}, reverb: {wet: .15, room: .4}};
+    await call('edit_project', {revision: (await project()).revision, label: 'Detach audio', commands: [{type: 'clip.detach-audio', id: 'camera-b', newClipId: 'detached-audio', newAssetId: 'detached-source', linkId: 'detached-link'}]});
+    const extracted = await project(); const videoB = extracted.clips.find(c => c.id === 'camera-b')!;
+    const detached = extracted.clips.find(c => c.kind === 'audio' && c.linkId === videoB.linkId)!;
+    expect(detached).toMatchObject({sourceStart: 45, start: 45, duration: 45});
+    expect(extracted.assets.find(a => a.id === detached.assetId)!.duration).toBeGreaterThanOrEqual(3);
+    expect(extracted.assets.find(a => a.id === detached.assetId)!.src).toBe(asset.src);
+    await call('undo_redo', {revision: extracted.revision, direction: 'undo'});
     const started = await call<AudioEffectJob>('apply_audio_effects', {revision: (await project()).revision, clipIds: ['camera-top'], effects});
     let job = started;
     await expect.poll(async () => {job = await call<AudioEffectJob>('get_audio_effect_job', {id: started.id}); return job.status;}, {timeout: 30000}).toMatch(/done|error/);

@@ -9,6 +9,8 @@ import {useWorkspace} from '../../stores/workspace-store';
 import {maximumSpeed, minimumSpeed, speedClipContext, speedTimeMap} from '../../../shared/speed-ramping';
 import {beginSpeedEdit} from '../../services/speed-actions';
 import {useSpeedJobs} from '../../stores/speed-store';
+import {AudioWaveform} from '../atoms/AudioWaveform';
+import {relatedClipIds} from '../../../shared/editorial-tools';
 
 interface Props {clip: Clip; asset?: Asset; pixelsPerFrame: number; top: number}
 export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFrame, top}: Props) {
@@ -36,6 +38,7 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
     const project = useEditor.getState().snapshot?.project; if(!project) return;
     if(retiming) {useEditor.setState({selectedIds: [clip.id], selectedId: clip.id, selectedTrackId: clipTrackId(project, clip), inspectorTab: 'properties'}); return;}
     const retime = mode === 'right' && clip.kind === 'video' && event.ctrlKey;
+    const trimMode = useEditor.getState().trimMode;
     let minimumDuration = 1; let maximumDuration = 108_000;
     if(retime) {
       try {
@@ -52,10 +55,11 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
     }
     if(mode === 'move' && (event.shiftKey || event.ctrlKey || event.metaKey)) {
       const current = timelineSelection(useEditor.getState());
-      const ids = current.includes(clip.id) ? current.filter(id => id !== clip.id) : [...current, clip.id];
+      const related = relatedClipIds(project, [clip.id]);
+      const ids = current.includes(clip.id) ? current.filter(id => !related.includes(id)) : [...new Set([...current, ...related])];
       useEditor.setState({selectedIds: ids, selectedId: ids[0] ?? null, playing: false}); return;
     }
-    if(mode === 'move' && startGroupDrag(event, clip.id, pixelsPerFrame)) return;
+    if(mode === 'move' && trimMode !== 'slip' && startGroupDrag(event, clip.id, pixelsPerFrame)) return;
     const originalTrack = clipTrackId(project, clip); let targetTrack = originalTrack;
     useEditor.setState({selectedIds: [clip.id], selectedId: clip.id, selectedTrackId: originalTrack, inspectorTab: 'properties', playing: false});
     const x = event.clientX; const y = event.clientY; const pointerId = event.pointerId; changed.current = null;
@@ -64,7 +68,10 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
       if(!changed.current && Math.hypot(e.clientX - x, e.clientY - y) < 4) return;
       let delta = Math.round((e.clientX - x) / pixelsPerFrame);
       let patch: Partial<Clip>;
-      if(mode === 'move') {
+      if(mode === 'move' && trimMode === 'slip' && asset && ['video', 'audio', 'sequence'].includes(clip.kind)) {
+        const available = clip.kind === 'sequence' ? Infinity : Math.floor(asset.duration * fps) - clip.duration;
+        patch = {sourceStart: Math.max(0, Math.min(available, clip.sourceStart + delta))};
+      } else if(mode === 'move') {
         const area = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('.track-area[data-track-id]');
         const track = projectTracks(project).find(t => t.id === area?.dataset.trackId);
         targetTrack = track && acceptsClip(track, clip) ? track.id : originalTrack;
@@ -76,7 +83,7 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
         }
         patch = {start: Math.max(0, start)};
       } else if(mode === 'left') {
-        const isSource = clip.kind === 'video' || clip.kind === 'audio' || !!clip.caption;
+        const isSource = clip.kind === 'video' || clip.kind === 'audio' || clip.kind === 'sequence' || !!clip.caption;
         delta = Math.max(-clip.start, isSource ? -clip.sourceStart : -clip.start, Math.min(delta, clip.duration - 1));
         patch = {start: clip.start + delta, duration: clip.duration - delta, sourceStart: clip.sourceStart + (isSource ? delta : 0), motionOffset: (clip.motionOffset ?? 0) + delta};
       } else if(retime) {
@@ -98,8 +105,14 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
         }
         return;
       }
-      if(mode === 'move' && targetTrack !== originalTrack) commands.push({type: 'clip.move-track', id: clip.id, trackId: targetTrack});
-      if(patch && Object.entries(patch).some(([key, value]) => clip[key as keyof Clip] !== value)) commands.push({type: 'clip.update', id: clip.id, patch});
+      if(patch && mode === 'move' && trimMode === 'slip' && patch.sourceStart !== undefined) commands.push({type: 'clip.slip', id: clip.id, delta: patch.sourceStart - clip.sourceStart, linked: true});
+      else if(patch && mode !== 'move') {
+        const delta = mode === 'left' ? patch.start! - clip.start : patch.duration! - clip.duration;
+        if(delta) commands.push(mode === 'right' && trimMode === 'roll' ? {type: 'clip.roll', id: clip.id, delta} : {type: 'clip.trim', id: clip.id, edge: mode === 'left' ? 'start' : 'end', delta, linked: true, ripple: mode === 'right' && trimMode === 'ripple'});
+      } else {
+        if(mode === 'move' && targetTrack !== originalTrack) commands.push({type: 'clip.move-track', id: clip.id, trackId: targetTrack});
+        if(patch && Object.entries(patch).some(([key, value]) => clip[key as keyof Clip] !== value)) commands.push({type: 'clip.update', id: clip.id, patch});
+      }
       if(commands.length) void useEditor.getState().execute(commands, mode === 'move' ? `Moved ${clip.name}` : `Trimmed ${clip.name}`, project.revision).then(ok => {if(ok) useEditor.setState({selectedTrackId: targetTrack});}).finally(() => setDraft(null)); else setDraft(null);
     };
     const cancel = (event?: globalThis.PointerEvent) => {if(event && event.pointerId !== pointerId) return; cleanup(); changed.current = null; setDraft(null); setRetimeDraft(false);};
@@ -110,7 +123,7 @@ export const TimelineClip = memo(function TimelineClip({clip, asset, pixelsPerFr
   return <div data-clip-id={clip.id} role="button" tabIndex={0} aria-label={`Select ${clip.name}`} aria-pressed={selected} className={`timeline-clip timeline-clip--${clip.track} ${selected ? 'selected' : ''} ${draft ? 'dragging' : ''} ${retimeDraft ? 'timeline-clip--retiming' : ''} ${tool === 'razor' ? 'timeline-clip--razor' : ''}`} style={{left: visible.start * pixelsPerFrame, width: Math.max(8, visible.duration * pixelsPerFrame), top}} onPointerDown={e => startDrag(e, 'move')} onPointerMove={e => {if(tool === 'razor') setCutOffset(Math.round((e.clientX - e.currentTarget.getBoundingClientRect().left) / pixelsPerFrame) * pixelsPerFrame);}} onPointerLeave={() => setCutOffset(null)} onKeyDown={e => {if(e.key === 'Enter') {const project = useEditor.getState().snapshot?.project; useEditor.setState({selectedIds: [clip.id], selectedId: clip.id, selectedTrackId: project ? clipTrackId(project, clip) : null, inspectorTab: 'properties', playing: false});}}}>
     {clip.track === 'visual' && asset?.thumbnail && <div className="clip-thumbnails" style={{backgroundImage: `url("${asset.thumbnail}")`}}/>}
     <div className="clip-label">{clip.kind === 'text' ? <Type size={11}/> : clip.kind === 'audio' ? <Music2 size={12}/> : <GripVertical size={12}/>}<span>{clip.kind === 'text' ? clip.text.replaceAll('\n', ' ') : clip.name}</span></div>
-    {clip.track === 'audio' && <div className="audio-strip"/>}
+    {asset && (clip.kind === 'audio' || clip.kind === 'video') && <AudioWaveform assetId={asset.id} sourceKey={asset.src} start={visible.sourceStart / fps} duration={visible.duration / fps}/>}
     {retimeDraft && <span className="clip-retime-hint">{(visible.duration / fps).toFixed(2)} s · {(clip.duration / visible.duration).toFixed(2)}× current</span>}
     {retiming && <span className="clip-retime-hint">{speedJob?.status === 'processing' ? `Retiming ${Math.round(speedJob.progress * 100)}%` : 'Retiming queued…'}</span>}
     {tool === 'razor' && cutOffset !== null && <span className="razor-guide" style={{left: cutOffset}}/>}

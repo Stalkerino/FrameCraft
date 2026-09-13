@@ -11,7 +11,7 @@ export interface HardwareEncoder {
 }
 
 /** Changes the encoding step only. Remotion's final audio mux keeps -c:v copy. */
-export function hardwareEncodingArguments(args: string[], encoder: HardwareEncoder, settings: ExportSettings, hardwareFrames = false) {
+export function hardwareEncodingArguments(args: string[], encoder: HardwareEncoder, settings: ExportSettings, hardwareFrames = false, options: {initializeDevice?: boolean} = {}) {
   const codecIndex = args.indexOf('-c:v');
   if(codecIndex < 0 || args[codecIndex + 1] === 'copy') return args;
   const result: string[] = [];
@@ -28,7 +28,7 @@ export function hardwareEncodingArguments(args: string[], encoder: HardwareEncod
   const bitrate = `${settings.videoBitrate}M`;
   const extra: string[] = [];
   if(encoder.backend === 'vaapi') {
-    result.unshift('-vaapi_device', encoder.device!);
+    if(options.initializeDevice !== false) result.unshift('-vaapi_device', encoder.device!);
     if(!hardwareFrames) filter = [filter, 'format=nv12', 'hwupload'].filter(Boolean).join(',');
     extra.push(...(quality ? ['-rc_mode', 'CQP', '-qp', settings.codec === 'av1' ? String(Math.round(settings.crf / 63 * 255)) : q] : ['-rc_mode', 'VBR', '-b:v', bitrate]));
   } else if(encoder.backend === 'amf') {

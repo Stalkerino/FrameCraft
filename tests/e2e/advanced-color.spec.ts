@@ -1,0 +1,51 @@
+import {test,expect} from '@playwright/test';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import path from 'node:path';
+import {mkdir} from 'node:fs/promises';
+import sharp from 'sharp';
+import type {Project} from '../../shared/project';
+import {applyColorGradeStages,colorGradeStages} from '../../shared/color-grading';
+
+test('imports a portable LUT, matches browser and rendered pixels, exposes real scopes and MCP grading',async({page,request})=>{
+  const project=async():Promise<Project>=>(await(await request.get('/api/project')).json()).project;
+  const response=await request.post('/api/projects',{data:{action:'new',revision:(await project()).revision,name:'Advanced color',settings:{width:320,height:180,fps:30,backgroundColor:'#000000',masterVolume:1}}});expect(response.ok()).toBe(true);
+  const directory=path.resolve('.cache/e2e-color-lut');await mkdir(directory,{recursive:true});const file=path.join(directory,'color.png');await sharp({create:{width:320,height:180,channels:3,background:{r:51,g:102,b:204}}}).png().toFile(file);
+  const imported=await request.post('/api/import-path',{data:{filePath:file}});expect(imported.ok(),await imported.text()).toBe(true);
+  let p=await project();const asset=p.assets[0];const added=await request.post('/api/commands',{data:{revision:p.revision,label:'Add image',commands:[{type:'clip.add',clip:{id:'image',kind:'image',track:'visual',assetId:asset.id,name:'Color source',start:0,duration:120}}]}});expect(added.ok()).toBe(true);
+  await page.goto('/');await page.locator('.timeline [data-clip-id="image"]').click();await page.getByRole('button',{name:'Color & scopes',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Color & scopes'});
+  const cube='TITLE "Swap red blue"\nLUT_3D_SIZE 2\n'+[0,1].flatMap(b=>[0,1].flatMap(g=>[0,1].map(r=>`${b} ${g} ${r}`))).join('\n');
+  await dialog.getByLabel('Import color LUT',{exact:true}).setInputFiles({name:'swap.cube',mimeType:'text/plain',buffer:Buffer.from(cube)});
+  await expect.poll(async()=>(await project()).colorLuts?.length).toBe(1);p=await project();const id=p.colorLuts![0].id;
+  await dialog.getByLabel('Creative LUT',{exact:true}).selectOption(id);await expect.poll(async()=>(await project()).colorGrade?.lut?.id).toBe(id);
+  await dialog.getByLabel('Grading space',{exact:true}).selectOption('linear-srgb');
+  await dialog.getByLabel('Exposure',{exact:true}).fill('0.5');await dialog.getByLabel('Exposure',{exact:true}).press('Tab');await expect.poll(async()=>(await project()).colorGrade?.exposure).toBe(.5);
+  await dialog.getByRole('button',{name:'Close color & scopes',exact:true}).click();
+  const graded=page.locator('.preview__canvas canvas[data-color-grade="gpu"]');await expect(graded).toBeVisible();
+  p=await project();const expected=applyColorGradeStages([.2,.4,.8],colorGradeStages(null,p.colorGrade,p.colorLuts)).map(v=>Math.round(v*255));
+  const png=await graded.evaluate((element:HTMLCanvasElement)=>element.toDataURL('image/png'));
+  const pixels=await sharp(Buffer.from(png.split(',')[1],'base64')).extract({left:100,top:80,width:1,height:1}).removeAlpha().raw().toBuffer();expected.forEach((v,i)=>expect(Math.abs(pixels[i]-v)).toBeLessThanOrEqual(2));
+  await page.getByRole('button',{name:'Color & scopes',exact:true}).click();
+  const captureResponse=page.waitForResponse(response=>response.url().endsWith('/api/color-grading/scopes')&&response.request().method()==='POST');
+  await dialog.getByRole('button',{name:'Capture scopes at playhead',exact:true}).click();const capture=await(await captureResponse).json();
+  await expect.poll(async()=>{const status=await(await request.get(`/api/color-grading/scopes/${capture.id}`)).json();return status.status;},{timeout:90000}).toMatch(/done|error/);
+  const finished=await(await request.get(`/api/color-grading/scopes/${capture.id}`)).json();expect(finished.status,finished.error).toBe('done');
+  await expect(dialog.getByRole('img',{name:'waveform of captured composition'})).toBeVisible();
+  const scopes=await(await request.get(`/api/color-grading/scopes/${capture.id}`)).json();expect(scopes.status,scopes.error).toBe('done');
+  const rendered=await sharp(await(await request.get(scopes.url)).body()).extract({left:100,top:80,width:1,height:1}).removeAlpha().raw().toBuffer();expected.forEach((v,i)=>expect(Math.abs(rendered[i]-v)).toBeLessThanOrEqual(2));
+  expect(scopes.result.meanLuma).toBeCloseTo((.2126*expected[0]+.7152*expected[1]+.0722*expected[2])/255*100,0);
+  const client=new Client({name:'color-test',version:'1'});await client.connect(new StdioClientTransport({command:process.execPath,args:[path.resolve('scripts/mcp.mjs')],env:{...process.env as Record<string,string>,FRAMECRAFT_URL:'http://127.0.0.1:4319'}}));
+  try{
+    const call=async(name:string,args:Record<string,unknown>)=>{const result=await client.callTool({name,arguments:args});expect(result.isError,JSON.stringify(result)).not.toBe(true);return JSON.parse((result.content as {type:string;text:string}[]).find(c=>c.type==='text')!.text);};
+    const snapshot=await call('get_project',{});expect(snapshot.project.colorLuts[0].data).toBeUndefined();
+    const read=await call('get_color_scopes',{id:capture.id});expect(read.result.samples).toBeGreaterThan(0);
+    await call('set_color_grade',{revision:(await project()).revision,scope:'clips',clipIds:['image'],ranges:[{start:30,end:60}],grade:{lut:{id,strength:.5}},apply:true});
+    p=await project();expect(p.clips).toHaveLength(3);expect(p.clips.find(clip=>clip.start===30)?.colorGrade?.lut?.strength).toBe(.5);
+    await call('undo_redo',{revision:p.revision,direction:'undo'});expect((await project()).clips).toHaveLength(1);
+    const native=await request.post('/api/render/native-preview',{data:{revision:(await project()).revision,frame:40,width:320,height:180,vendor:'amd'}});expect(native.ok(),await native.text()).toBe(true);const scene=await native.json();expect(scene.graph).not.toContain('hwdownload');expect(scene.graph).toContain(Buffer.from('//!TEXTURE fc_lut0').toString('hex'));
+    await call('manage_project',{operation:{revision:(await project()).revision,action:'new',name:'Second LUT project',settings:{width:320,height:180,fps:30,backgroundColor:'#000000',masterVolume:1}}});
+    const library=await call('list_color_luts',{});expect(library.some((item:{id:string})=>item.id===id)).toBe(true);
+    await call('attach_color_lut',{revision:(await project()).revision,id});expect((await project()).colorLuts?.[0].id).toBe(id);
+  }finally{await client.close();}
+});

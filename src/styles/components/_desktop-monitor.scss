@@ -1,0 +1,15 @@
+.desktop-monitor {
+  position: relative;
+  font-size: 11px;
+  summary { cursor: pointer; white-space: nowrap; }
+  &__panel {
+    position: absolute; z-index: 70; right: 0; bottom: 24px;
+    width: min(320px, 80vw); padding: 12px; border: 1px solid #34434b;
+    border-radius: 6px; background: #141e24; box-shadow: 0 8px 24px #0008;
+    p { margin: 0 0 8px; white-space: normal; line-height: 1.4; }
+    label { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
+    select, button { padding: 4px 7px; background: #22313a; color: #edf5f8; border: 1px solid #425764; border-radius: 4px; }
+    [role='alert'] { margin-top: 8px; color: #ffad9d; }
+    [role='status'] { margin-top: 8px; color: #8ee5cc; }
+  }
+}

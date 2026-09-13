@@ -29,8 +29,9 @@ describe('persistent transactions', () => {
     const results = await Promise.allSettled([repo.execute([{type: 'project.rename', name: 'First'}], 0, 'editor', 'First'), repo.execute([{type: 'project.rename', name: 'Second'}], 0, 'codex', 'Second')]);
     expect(results.map(r => r.status)).toEqual(['fulfilled', 'rejected']); expect(repo.snapshot().project.name).toBe('First');
   });
-  it('preserves corrupted project files instead of replacing user work', async () => {
-    const {dir} = await setup(); await writeFile(path.join(dir, 'project.json'), '{broken');
+  it('preserves a corrupted project when no recovery copy is available', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'framecraft-unrecoverable-')); directories.push(dir);
+    await writeFile(path.join(dir, 'project.json'), '{broken');
     await expect(new ProjectRepository(dir).init()).rejects.toThrow('preserved');
     expect(await readFile(path.join(dir, 'project.json'), 'utf8')).toBe('{broken');
   });

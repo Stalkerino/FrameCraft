@@ -1,6 +1,8 @@
+import {MediaFolderSelect} from '../molecules/MediaFolderSelect';
+import {MediaFoldersDialog} from './MediaFoldersDialog';
 import {useAgentName} from '../../stores/agent-store';
 import {AudioLines, Boxes, Check, Film, FolderPlus, Grid2X2, Layers3, List, LoaderCircle, Search, Sparkles, Type, Upload, WandSparkles, X} from 'lucide-react';
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {useEditor} from '../../stores/editor-store';
 import {openLibraryPanel, openInspectorPanel} from '../../services/workspace-navigation';
 import {useAnalysis} from '../../stores/analysis-store';
@@ -30,6 +32,7 @@ export function MediaLibrary() {
   const busy = useEditor(s => s.busy);
   const selectedId = useEditor(s => s.selectedId);
   const input = useRef<HTMLInputElement>(null);
+  const [folder, setFolder] = useState('*'); const [foldersDialog, setFoldersDialog] = useState(false);
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<'all' | Asset['kind']>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -39,7 +42,9 @@ export function MediaLibrary() {
   const mediaTab = tab === 'media' || tab === 'audio';
   const projectMediaTab = mediaTab && (tab !== 'audio' || audioView === 'project');
   const project = snapshot?.project;
-  const assets = project?.assets.filter(asset => (tab === 'audio' ? asset.kind === 'audio' : kind === 'all' || asset.kind === kind) && asset.name.toLowerCase().includes(search.toLowerCase())) ?? [];
+  useEffect(() => {setFolder('*'); setFoldersDialog(false); setPreviewId(null);}, [project?.id]);
+  const activeFolder = folder === '*' || folder === '' || project?.folders?.some(f => f.id === folder) ? folder : '*';
+  const assets = project?.assets.filter(asset => (activeFolder === '*' || (asset.folderId || '') === activeFolder) && (tab === 'audio' ? asset.kind === 'audio' : kind === 'all' || asset.kind === kind) && asset.name.toLowerCase().includes(search.toLowerCase())) ?? [];
   const selected = project?.clips.find(clip => clip.id === selectedId);
   const transitionTarget = selected?.track === 'visual' ? selected : null;
   const previewAsset = project?.assets.find(asset => asset.id === previewId);
@@ -54,17 +59,18 @@ export function MediaLibrary() {
     {tab === 'assets' ? <AssetStudio/> : tab === 'assist' ? <AssistWorkspace/> : <section className={`library ${dragging ? 'library--drop' : ''}`}
       onDragOver={event => {if(event.dataTransfer.types.includes('Files')) {event.preventDefault(); setDragging(true);}}}
       onDragLeave={event => {if(!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);}}
-      onDrop={event => {setDragging(false); if(event.dataTransfer.files.length) {event.preventDefault(); if(tab === 'audio') setAudioView('project'); void useEditor.getState().importFiles(Array.from(event.dataTransfer.files));}}}>
+      onDrop={event => {setDragging(false); if(event.dataTransfer.files.length) {event.preventDefault(); if(tab === 'audio') setAudioView('project'); void useEditor.getState().importFiles(Array.from(event.dataTransfer.files), activeFolder === '*' ? undefined : activeFolder);}}}>
       <div className="panel-heading"><h2>{tab === 'media' ? 'Project media' : tab === 'text' ? 'Titles & text' : tab === 'effects' ? 'Transitions & motion' : 'Audio library'}</h2>{projectMediaTab && <span className="count-badge">{assets.length}</span>}</div>
       {tab === 'audio' && <div className="audio-library-tabs" aria-label="Audio source"><button aria-pressed={audioView === 'project'} onClick={() => setAudioView('project')}>Project audio</button><button aria-pressed={audioView === 'sounds'} onClick={() => setAudioView('sounds')}>Sound library</button></div>}
-      <input ref={input} type="file" multiple hidden aria-label="Import media files" accept={tab === 'audio' ? 'audio/*' : 'video/*,audio/*,.png,.jpg,.jpeg,.webp,.mkv'} onChange={event => {void useEditor.getState().importFiles(Array.from(event.target.files || [])); event.target.value = '';}}/>
+      <input ref={input} type="file" multiple hidden aria-label="Import media files" accept={tab === 'audio' ? 'audio/*' : 'video/*,audio/*,.png,.jpg,.jpeg,.webp,.mkv'} onChange={event => {void useEditor.getState().importFiles(Array.from(event.target.files || []), activeFolder === '*' ? undefined : activeFolder); event.target.value = '';}}/>
       {projectMediaTab && <>
         <div className="library-actions"><Button className="import-button" icon={importing ? <LoaderCircle size={15} className="spin"/> : <Upload size={15}/>} onClick={() => input.current?.click()} disabled={!!importing}>{importing ? 'Importing…' : tab === 'audio' ? 'Import audio' : 'Import media'}</Button><div className="library-view" aria-label="Library view"><IconButton label="Grid view" aria-pressed={view === 'grid'} onClick={() => setView('grid')}><Grid2X2 size={15}/></IconButton><IconButton label="List view" aria-pressed={view === 'list'} onClick={() => setView('list')}><List size={15}/></IconButton></div></div>
         <div className="search-field"><Search size={14}/><input aria-label="Search media" placeholder="Search files…" value={search} onChange={event => setSearch(event.target.value)}/>{search && <button aria-label="Clear media search" onClick={() => setSearch('')}><X size={13}/></button>}</div>
         {tab === 'media' && <div className="library-filters" aria-label="Filter media type">{(['all', 'video', 'image', 'audio'] as const).map(value => <button key={value} aria-pressed={kind === value} onClick={() => setKind(value)}>{value === 'all' ? 'All' : value === 'image' ? 'Images' : value === 'video' ? 'Video' : 'Audio'}</button>)}</div>}
+        <div className="media-folder-filter"><MediaFolderSelect label="Filter media folder" all folders={project?.folders ?? []} value={activeFolder} onChange={setFolder}/><Button disabled={busy} onClick={() => setFoldersDialog(true)}>Folders</Button></div>
         <p className="library-instructions">Click to preview · Drag to a track · + to append</p>
         <div className={`media-grid ${view === 'list' ? 'media-grid--list' : ''}`}>{assets.map(asset => <MediaCard key={asset.id} asset={asset} uses={usage.get(asset.id)} onPreview={() => {useEditor.setState({playing: false}); setPreviewId(asset.id);}}/>)}</div>
-        {!assets.length && <div className="empty-state library-empty"><FolderPlus size={26}/><p>{search || (tab === 'media' && kind !== 'all') ? 'No matching media' : tab === 'audio' ? 'Add music or sound effects' : 'Import your source media'}</p><span>{search ? 'Try another filename or clear the search.' : 'Choose files or drop them into this panel.'}</span>{search && <Button variant="ghost" onClick={() => setSearch('')}>Clear search</Button>}</div>}
+        {!assets.length && <div className="empty-state library-empty"><FolderPlus size={26}/><p>{search || activeFolder !== '*' || (tab === 'media' && kind !== 'all') ? 'No matching media' : tab === 'audio' ? 'Add music or sound effects' : 'Import your source media'}</p><span>{search ? 'Try another filename or clear the search.' : 'Choose files or drop them into this panel.'}</span>{search && <Button variant="ghost" onClick={() => setSearch('')}>Clear search</Button>}</div>}
         <button className="drop-zone" onClick={() => input.current?.click()} disabled={!!importing}><FolderPlus size={18}/><span>{importing || 'Drop files to import'}</span><small>{importing ? 'Copying into this project’s media folder' : tab === 'audio' ? 'Music, dialogue & sound effects' : 'Video, images & audio'}</small></button>
       </>}
       {tab === 'audio' && audioView === 'sounds' && <SoundLibrary/>}
@@ -81,6 +87,7 @@ export function MediaLibrary() {
       </>}
       <div className="library-footer"><span className="status-dot"/> {tab === 'audio' && audioView === 'sounds' ? 'Sound recipes shared across projects' : mediaTab ? 'Media saved in this project' : 'Changes are saved automatically'}</div>
     </section>}
+    {foldersDialog && <MediaFoldersDialog onClose={() => setFoldersDialog(false)}/>}
     {previewAsset && <MediaSourceDialog key={previewAsset.id} asset={previewAsset} onClose={() => setPreviewId(null)}/>}
   </aside>;
 }

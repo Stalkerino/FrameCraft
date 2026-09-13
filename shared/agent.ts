@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {agentProviderIds, type AgentProvider, type AgentConfigOption} from './agent-providers';
 
 export interface AgentMessage {id: string; role: 'user' | 'assistant'; text: string; order?: number}
 export interface AgentActivity {id: string; label: string; detail: string; status: string; order?: number}
@@ -20,7 +21,9 @@ export interface AgentOllamaRuntime {
   generationMilliseconds?: number; loadMilliseconds?: number; doneReason?: string;
 }
 export interface AgentSession {
-  provider?: 'codex' | 'ollama'; providerSettings?: AgentProviderSettings; vision?: boolean;
+  provider?: AgentProvider; providerSettings?: AgentProviderSettings; vision?: boolean;
+  configOptions?: AgentConfigOption[];
+  authMethods?: {id: string; name: string}[];
   ollamaRuntime?: AgentOllamaRuntime;
   autoApprove: boolean;
   status: 'idle' | 'starting' | 'ready' | 'working' | 'error';
@@ -42,7 +45,8 @@ export const agentReplySchema = z.object({id: z.string().min(1), decision: z.enu
 export type AgentReply = z.infer<typeof agentReplySchema>;
 
 export const agentProviderSettingsSchema = z.object({
-  provider: z.enum(['codex', 'ollama']),
+  provider: z.enum(agentProviderIds),
+  cliAgents: z.record(z.object({command: z.string().trim().max(4096), args: z.array(z.string().max(16000)).max(100), cwd: z.string().trim().max(4096).default(''), authMethod: z.string().trim().max(256).optional()}).strict()).default({}),
   ollamaUrl: z.string().trim().url().refine(value => {const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash;}, 'Use an HTTP(S) server URL without credentials or query parameters').default('http://127.0.0.1:11434'),
   contextLength: z.number().int().min(4096).max(262144).default(32768),
   workspaceAccess: z.enum(['disabled', 'files', 'commands']).default('disabled'),

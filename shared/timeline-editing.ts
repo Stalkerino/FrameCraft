@@ -20,6 +20,6 @@ export function copyTimelineClip(project: Project, source: Clip, id: string, sta
   if(!target || !acceptsClip(target, source)) throw new Error('Select a compatible track before pasting this clip.');
   if(source.assetId && !project.assets.some(a => a.id === source.assetId)) throw new Error('The copied clip’s media is no longer in this project.');
   const clip = reframeProject({...project, fps: sourceFps, clips: [structuredClone(source)]}, project.fps).clips[0];
-  return {...clip, id, name: `${source.name.slice(0, 235)} copy`, start: Math.max(0, Math.round(start)), trackId: target.id, track: target.type,
+  return {...clip, groupId: null, linkId: null, id, name: `${source.name.slice(0, 235)} copy`, start: Math.max(0, Math.round(start)), trackId: target.id, track: target.type,
     ...(target.type !== 'visual' ? {transition: 'none', presetTransition: null, zoom: null} : {})};
 }

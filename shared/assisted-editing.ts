@@ -20,7 +20,7 @@ export function removeTimelineRanges(project: Project, ranges: FrameRange[], id:
     for(const cut of cuts) fragments = fragments.flatMap(f => cut.end <= f.start || cut.start >= f.end ? [f] : [{start: f.start, end: Math.min(f.end, cut.start)}, {start: Math.max(f.start, cut.end), end: f.end}].filter(r => r.end > r.start));
     for(const [index, fragment] of fragments.entries()) {
       const offset = fragment.start - clip.start;
-      clips.push({...clip, id: index === 0 ? clip.id : id(), start: fragment.start - removedBefore(fragment.start), duration: fragment.end - fragment.start, sourceStart: clip.sourceStart + (clip.kind === 'video' || clip.kind === 'audio' || clip.caption ? offset : 0), motionOffset: (clip.motionOffset ?? 0) + offset, ...(clip.audioEnvelope ? {audioEnvelope: shiftAudioEnvelope(clip.audioEnvelope, offset)} : {}), transition: offset ? 'none' : clip.transition, presetTransition: offset ? null : clip.presetTransition});
+      clips.push({...clip, id: index === 0 ? clip.id : id(), start: fragment.start - removedBefore(fragment.start), duration: fragment.end - fragment.start, sourceStart: clip.sourceStart + (clip.kind === 'video' || clip.kind === 'audio' || clip.caption ? offset : 0), motionOffset: (clip.motionOffset ?? 0) + offset, ...(clip.audioEnvelope ? {audioEnvelope: shiftAudioEnvelope(clip.audioEnvelope, offset)} : {}), ...(clip.audioDucking ? {audioDucking: shiftAudioEnvelope(clip.audioDucking, offset)} : {}), transition: offset ? 'none' : clip.transition, presetTransition: offset ? null : clip.presetTransition});
     }
   }
   return clips;

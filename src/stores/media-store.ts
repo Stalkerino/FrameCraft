@@ -1,9 +1,9 @@
 import {create} from 'zustand';
-import {mediaPreviewKey, type MediaPreviews, type PreviewQuality} from '../../shared/media-import';
+import {mediaPreviewKey, previewQualities, type MediaPreviews, type PreviewQuality} from '../../shared/media-import';
 import {mediaApi} from '../services/media-api';
 import {useEditor} from './editor-store';
 
-function savedQuality(): PreviewQuality {try {return localStorage.getItem('framecraft.preview-quality') === 'performance' ? 'performance' : 'high';} catch {return 'high';}}
+function savedQuality(): PreviewQuality {try {const saved = localStorage.getItem('framecraft.preview-quality'); return previewQualities.find(quality => quality === saved) ?? 'high';} catch {return 'high';}}
 interface MediaState {previews: MediaPreviews; quality: PreviewQuality; unsupportedOriginals: Record<string, boolean>}
 export const useMedia = create<MediaState>(() => ({previews: {}, quality: savedQuality(), unsupportedOriginals: {}}));
 export function connectMedia() {return mediaApi.subscribe(previews => useMedia.setState({previews}));}

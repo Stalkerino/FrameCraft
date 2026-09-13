@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest';
-import {mkdtemp, readFile, rm} from 'node:fs/promises';
+import {chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {CodexSessionService} from '../server/services/codex-session-service';
@@ -26,6 +26,34 @@ describe('Codex process boundary', () => {
   });
   it('gives an actionable error when the CLI is missing', async () => {
     await expect(resolveCodex({env: {PATH: '/missing'}, available: async () => false})).rejects.toThrow('Codex CLI was not found');
+  });
+  it('finds npm in Windows AppData when the desktop PATH omits it', async () => {
+    const bin = 'C:\\Users\\A & B\\AppData\\Roaming\\npm';
+    const script = path.win32.join(bin, 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
+    const result = await resolveCodex({platform: 'win32', node: 'C:\\node\\node.exe', env: {Path: 'C:\\Windows', APPDATA: path.win32.dirname(bin)},
+      listDirectories: async () => [], available: async file => [path.win32.join(bin, 'codex.cmd'), script].includes(file)});
+    expect(result).toEqual({command: 'C:\\node\\node.exe', args: [script]});
+  });
+  it.each(['/home/test/.nvm/versions/node', '/home/test/.local/share/nvm', '/custom/nvm/versions/node'])('discovers an NVM installation outside PATH in %s', async root => {
+    const candidate = `${root}/v24.15.0/bin/codex`;
+    const result = await resolveCodex({platform: 'linux', node: '/usr/bin/node', env: {HOME: '/home/test', PATH: '/usr/bin', NVM_DIR: '/custom/nvm'},
+      listDirectories: async dir => dir === root ? ['v9.0.0', 'v24.15.0', 'alias', '../outside'] : [], available: async file => file === candidate || file === `${root}/v9.0.0/bin/codex`});
+    expect(result).toEqual({command: candidate, args: []});
+  });
+  it('keeps explicit overrides authoritative and explains a stale override', async () => {
+    await expect(resolveCodex({env: {FRAMECRAFT_CODEX_PATH: '/stale/codex', PATH: '/working'}, available: async file => file === '/working/codex'})).rejects.toThrow('FRAMECRAFT_CODEX_PATH could not be opened');
+    expect(await resolveCodex({env: {FRAMECRAFT_CODEX_PATH: '"/custom path/codex.mjs"'}, available: async file => file === '/custom path/codex.mjs'}))
+      .toEqual({command: process.execPath, args: ['/custom path/codex.mjs']});
+  });
+  it.skipIf(process.platform === 'win32')('runs a discovered npm symlink with the existing Node runtime instead of its PATH shebang', async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), 'framecraft-codex-discovery-')); directories.push(home);
+    const prefix = path.join(home, '.local/share/nvm/v24.15.0');
+    const script = path.join(prefix, 'lib/node_modules/@openai/codex/bin/codex.js');
+    await mkdir(path.dirname(script), {recursive: true}); await mkdir(path.join(prefix, 'bin'), {recursive: true});
+    await writeFile(script, '#!/usr/bin/env node\n'); await chmod(script, 0o755);
+    await symlink(script, path.join(prefix, 'bin/codex'));
+    const result = await resolveCodex({platform: 'linux', env: {HOME: home, PATH: '/missing'}, node: '/runtime/node'});
+    expect(result).toEqual({command: '/runtime/node', args: [script]});
   });
 });
 

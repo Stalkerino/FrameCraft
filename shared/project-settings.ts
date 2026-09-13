@@ -6,7 +6,7 @@ import {reframeVisualKeyframes} from './visual-editing';
 export function reframeProject(project: Project, fps: number): Project {
   if(fps === project.fps) return structuredClone(project);
   const ratio = fps / project.fps; const frame = (n: number) => Math.round(n * ratio);
-  return {...project, fps, clips: project.clips.map(clip => {
+  return {...project, fps, ...(project.markers ? {markers: project.markers.map(m => ({...m, frame: frame(m.frame), end: m.end == null ? m.end : Math.max(frame(m.frame) + 1, frame(m.end))}))} : {}), clips: project.clips.map(clip => {
     const start = frame(clip.start); let sourceStart = frame(clip.sourceStart); let duration = Math.max(1, frame(clip.start + clip.duration) - start);
     if(clip.kind === 'video' || clip.kind === 'audio') {
       const asset = project.assets.find(a => a.id === clip.assetId)!; const maximum = Math.floor(asset.duration * fps + 1e-7);
@@ -15,6 +15,7 @@ export function reframeProject(project: Project, fps: number): Project {
     }
     return {...clip, start, duration, sourceStart, transitionFrames: Math.max(1, frame(clip.transitionFrames)), motionOffset: clip.motionOffset === undefined ? undefined : frame(clip.motionOffset),
       ...(clip.audioEnvelope ? {audioEnvelope: reframeAudioEnvelope(clip.audioEnvelope, ratio)} : {}),
+      ...(clip.audioDucking ? {audioDucking: reframeAudioEnvelope(clip.audioDucking, ratio)} : {}),
       ...(clip.keyframes ? {keyframes: reframeVisualKeyframes(clip.keyframes, ratio)} : {}),
       zoom: clip.zoom ? {...clip.zoom, start: frame(clip.zoom.start), end: Math.max(frame(clip.zoom.start) + 1, frame(clip.zoom.end))} : clip.zoom,
       caption: clip.caption ? {...clip.caption, words: clip.caption.words.map(w => ({...w, start: frame(w.start), end: Math.max(frame(w.start) + 1, frame(w.end))}))} : clip.caption};

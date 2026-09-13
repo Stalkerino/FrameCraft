@@ -1,3 +1,5 @@
+import {SequenceInsertMenu} from './SequenceInsertMenu';
+import {SequenceSelect} from './SequenceSelect';
 import {ClipboardPaste, Copy, CopyPlus, Layers3, LocateFixed, Magnet, Maximize2, Minus, MousePointer2, Plus, Redo2, Scissors, Sparkles, Trash2, Undo2} from 'lucide-react';
 import type {Project} from '../../../shared/project';
 import {canSplitAt, splitTarget} from '../../../shared/timeline-editing';
@@ -6,8 +8,9 @@ import {useAnalysis} from '../../stores/analysis-store';
 import {useWorkspace} from '../../stores/workspace-store';
 import {Button, IconButton} from '../atoms/Button';
 import {AddTrackMenu} from './AddTrackMenu';
+import {EditorialTools} from './EditorialTools';
 
-export function TimelineToolbar({project, onFit}: {project?: Project; onFit: () => void}) {
+export function TimelineToolbar({project, onFit, onMarkers, onSequences}: {project?: Project; onFit: () => void; onMarkers: () => void; onSequences: () => void}) {
   const {frame, selectedId, selectedTrackId, timelineTool, zoom, busy, clipboard, snapshot} = useEditor();
   const {snapping, followPlayhead, configure} = useWorkspace();
   const selected = project?.clips.find(c => c.id === selectedId);
@@ -15,8 +18,8 @@ export function TimelineToolbar({project, onFit}: {project?: Project; onFit: () 
   const gameplay = () => {useAnalysis.setState({tab: 'gameplay', assetId: selected?.kind === 'video' ? selected.assetId ?? '' : ''}); useEditor.setState({libraryTab: 'assist'}); useWorkspace.getState().configure({showLibrary: true});};
   return <div className="timeline-toolbar">
     <div className="timeline-toolbar__row timeline-toolbar__sequence">
-      <div className="timeline-toolbar__title"><Layers3 size={14}/><strong>Timeline</strong><span className="timeline-sequence-name">{project?.name || 'No project'}</span><span className="timeline-count">{project?.clips.length || 0} clips</span></div>
-      <div className="timeline-toolbar__sequence-actions"><Button variant="ghost" icon={<Sparkles size={13}/>} onClick={gameplay} disabled={!project?.assets.some(a => a.kind === 'video')}>Smart cut</Button><AddTrackMenu/></div>
+      <div className="timeline-toolbar__title"><Layers3 size={14}/><strong>Timeline</strong>{project && <SequenceSelect project={project} disabled={busy}/>}<span className="timeline-count">{project?.clips.length || 0} clips</span></div>
+      <div className="timeline-toolbar__sequence-actions">{project && <SequenceInsertMenu project={project} busy={busy}/>}<Button variant="ghost" disabled={!project || busy} onClick={onSequences}>Sequences</Button><Button variant="ghost" icon={<Sparkles size={13}/>} onClick={gameplay} disabled={!project?.assets.some(a => a.kind === 'video')}>Smart cut</Button><Button variant="ghost" onClick={onMarkers} disabled={!project}>Markers</Button><AddTrackMenu/></div>
     </div>
     <div className="timeline-toolbar__row">
       <div className="timeline-tools" role="toolbar" aria-label="Timeline editing tools">
@@ -39,6 +42,7 @@ export function TimelineToolbar({project, onFit}: {project?: Project; onFit: () 
           <Button variant="ghost" icon={<Magnet size={14}/>} aria-label="Snap clips (N)" aria-pressed={snapping} className={snapping ? 'active' : ''} onClick={() => configure({snapping: !snapping})}>Snap</Button>
           <IconButton label="Follow playhead" aria-pressed={followPlayhead} className={followPlayhead ? 'active' : ''} onClick={() => configure({followPlayhead: !followPlayhead})}><LocateFixed size={16}/></IconButton>
         </div>
+        <EditorialTools/>
       </div>
       <div className="timeline-zoom">
         <IconButton label="Fit timeline" onClick={onFit}><Maximize2 size={14}/></IconButton>

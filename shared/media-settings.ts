@@ -8,6 +8,7 @@ export const exportSettingsSchema = z.object({
   width: dimensionSchema, height: dimensionSchema, fps: fpsSchema,
   codec: z.enum(codecNames).default('h264'), fit: z.enum(['contain', 'cover', 'stretch']).default('contain'),
   encoder: z.enum(['auto', 'cpu', 'amd', 'nvidia']).default('auto'),
+  renderer: z.enum(['compatible', 'native-gpu', 'native-vulkan']).default('compatible').describe('compatible preserves all effects. native-gpu handles full-canvas cuts. native-vulkan adds static multitrack composition, crop, placement and canvas backgrounds through Vulkan Video. Native modes require GPU video stages; unsupported operations fail without CPU/browser fallback.'),
   qualityMode: z.enum(['quality', 'bitrate']).default('quality'), crf: z.number().int().min(0).max(63).default(16), videoBitrate: z.number().min(.1).max(500).default(32),
   preset: z.enum(['ultrafast', 'veryfast', 'fast', 'medium', 'slow', 'veryslow']).default('medium'),
   proResProfile: z.enum(['proxy', 'light', 'standard', 'hq', '4444', '4444-xq']).default('hq'),
@@ -15,6 +16,8 @@ export const exportSettingsSchema = z.object({
   startSeconds: z.number().finite().nonnegative().default(0), endSeconds: z.number().finite().positive().optional(),
 }).superRefine((settings, context) => {
   const issue = (path: string, message: string) => context.addIssue({code: z.ZodIssueCode.custom, path: [path], message});
+  if(settings.renderer !== 'compatible' && settings.encoder !== 'amd' && settings.encoder !== 'nvidia') issue('encoder', 'Choose AMD or NVIDIA for native GPU rendering.');
+  if(settings.renderer !== 'compatible' && !['h264', 'h264-mkv', 'h265', 'av1'].includes(settings.codec)) issue('codec', 'Native GPU rendering requires H.264, H.265 or AV1.');
   if(settings.qualityMode === 'quality' && ['h264', 'h265', 'h264-mkv'].includes(settings.codec) && settings.crf > 51) issue('crf', 'H.264 and H.265 quality must be between 0 and 51');
   if(settings.qualityMode === 'quality' && ['h264', 'h264-mkv'].includes(settings.codec) && settings.crf < 1) issue('crf', 'H.264 CRF must be at least 1');
   if(settings.qualityMode === 'quality' && settings.codec === 'vp8' && settings.crf < 4) issue('crf', 'VP8 CRF must be at least 4');
