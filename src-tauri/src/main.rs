@@ -6,12 +6,7 @@ mod monitor;
 use tauri::Manager;
 
 fn main() {
-    let backend = backend::Backend::start().expect("Framecraft backend could not start");
-    if std::env::var("FRAMECRAFT_DESKTOP_CHECK").is_ok() { eprintln!("Desktop check: backend ready at {}", backend.url); }
-    let origin = backend.url.clone();
     let app = tauri::Builder::default()
-        .manage(backend)
-        .manage(monitor::TrustedOrigin(origin.clone()))
         .invoke_handler(tauri::generate_handler![exports::open_render_output, monitor::desktop_info, monitor::surface_open, monitor::surface_resize, monitor::surface_frame, monitor::surface_close, monitor::surface_check_finished])
         .on_page_load(|window, payload| {
             if std::env::var("FRAMECRAFT_DESKTOP_CHECK").is_ok() { eprintln!("Desktop check: page {:?}", payload.event()); }
@@ -26,6 +21,16 @@ fn main() {
             }
         })
         .setup(move |app| {
+            let backend = backend::Backend::start(app.handle()).map_err(std::io::Error::other)?;
+            let origin = backend.url.clone();
+            app.manage(backend);
+            app.manage(monitor::TrustedOrigin(origin.clone()));
+            // CI checks the installed native executable and its bundled backend
+            // without opening a monitor or initializing any GPU resources.
+            if std::env::args().any(|arg| arg == "--release-smoke") {
+                app.handle().exit(0);
+                return Ok(());
+            }
             if std::env::var("FRAMECRAFT_DESKTOP_CHECK").is_ok() { eprintln!("Desktop check: creating window"); }
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::External(origin.parse()?))
                 .title("Framecraft").theme(Some(tauri::Theme::Dark)).decorations(false)
@@ -47,6 +52,6 @@ fn main() {
         })
         .build(tauri::generate_context!()).expect("Framecraft desktop could not start");
     app.run(|handle, event| {
-        if matches!(event, tauri::RunEvent::Exit) { handle.state::<backend::Backend>().close(); }
+        if matches!(event, tauri::RunEvent::Exit) { if let Some(backend) = handle.try_state::<backend::Backend>() { backend.close(); } }
     });
 }

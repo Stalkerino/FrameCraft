@@ -35,6 +35,7 @@ export class GpuFontService {
       try {candidates.push((await runProcess('fc-match', ['-f', '%{file}', `Arial:style=${weight === 'bold' ? 'Bold' : 'Regular'}`], 5000)).trim());} catch { /* Known Linux locations below. */ }
       for(const root of ['/usr/share/fonts/truetype/liberation2', '/usr/share/fonts/truetype/liberation', '/usr/share/fonts/liberation']) candidates.push(path.join(root, `LiberationSans-${weight === 'bold' ? 'Bold' : 'Regular'}.ttf`));
     }
+    if(process.env.FRAMECRAFT_FONT_DIR) candidates.push(path.join(process.env.FRAMECRAFT_FONT_DIR, `LiberationSans-${weight === 'bold' ? 'Bold' : 'Regular'}.ttf`));
     for(const file of candidates.filter(Boolean)) {
       try {await access(file);} catch {continue;}
       if((await stat(file)).size > 64 * 1024 ** 2) throw new Error('The selected font exceeds the 64 MiB font file budget.');

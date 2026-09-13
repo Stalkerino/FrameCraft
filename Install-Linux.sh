@@ -11,23 +11,21 @@ as_admin() { if command -v sudo >/dev/null 2>&1; then sudo "$@"; else echo 'sudo
 install_packages() {
     if command -v apt-get >/dev/null 2>&1; then
         as_admin apt-get update
-        SOUND=libasound2
-        if apt-cache show libasound2t64 >/dev/null 2>&1; then SOUND=libasound2t64; fi
-        as_admin apt-get install -y ca-certificates curl xz-utils ffmpeg libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libx11-xcb1 libxcb1 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libxkbcommon0 libcups2 "$SOUND" libpango-1.0-0 libcairo2 fonts-liberation
+        as_admin apt-get install -y ca-certificates curl xz-utils build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev librsvg2-dev patchelf
     elif command -v pacman >/dev/null 2>&1; then
-        as_admin pacman -S --needed --noconfirm ca-certificates curl xz ffmpeg chromium
+        as_admin pacman -S --needed --noconfirm ca-certificates curl xz base-devel gtk3 webkit2gtk-4.1
     elif command -v dnf >/dev/null 2>&1; then
-        as_admin dnf install -y ca-certificates curl xz ffmpeg chromium
+        as_admin dnf install -y ca-certificates curl xz gcc gcc-c++ make pkgconf-pkg-config gtk3-devel webkit2gtk4.1-devel openssl-devel
     elif command -v zypper >/dev/null 2>&1; then
-        as_admin zypper --non-interactive install ca-certificates curl xz ffmpeg chromium
+        as_admin zypper --non-interactive install ca-certificates curl xz gcc gcc-c++ make pkg-config gtk3-devel webkit2gtk3-devel libopenssl-devel
     else
-        echo 'Install Node.js 22+, curl, xz, FFmpeg (with libx264 and ffprobe), and Chromium using your distribution, then rerun this installer.' >&2
+        echo 'Install Node.js 22+, Rust and the Tauri GTK/WebKitGTK development packages using your distribution, then rerun this installer.' >&2
         exit 1
     fi
 }
-# Start skips package installation; a first installation prepares browser libraries too.
+# Start skips package installation; a first installation prepares desktop libraries.
 if [ "${1:-}" != '--launch' ] || [ ! -f "$RUNTIME/config.json" ]; then
-    echo 'Preparing FFmpeg and browser libraries. The package manager may ask for your password.'
+    echo 'Preparing native desktop build libraries. The package manager may ask for your password.'
     install_packages
 fi
 NODE="$RUNTIME/node/bin/node"

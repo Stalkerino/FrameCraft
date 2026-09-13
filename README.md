@@ -29,9 +29,9 @@ See the [feature and MCP tool reference](docs/feature-overview.md) for the full 
 
 ## Run locally
 
-**Quick install:** download and extract the repository ZIP, then open **Install-Windows.cmd** on Windows or run **Install-Linux.sh** in a terminal on Linux. Setup prepares dependencies, builds the editor and opens it in your browser. Next time use **Start-Windows.cmd** or **Start-Linux.sh**. [Installation steps, supported distributions and troubleshooting →](docs/installation.md)
+**Desktop downloads:** open [GitHub Releases](https://github.com/Stalkerino/FrameCraft/releases) and download the Windows `-setup.exe`, Linux `.AppImage`, or `.deb`. Release packages bundle Node, the editor backend, native media libraries and built-in assets. No repository checkout, Node, Rust or Chrome installation is needed to open the desktop editor. [Installation and release builds →](docs/installation.md)
 
-### Manual setup
+### Optional web mode / backend development
 
 Install **Node.js 22+** and **FFmpeg with ffprobe** on your PATH. A Chrome/Chromium executable is needed for rendering; set `CHROME_PATH` if necessary, or let Remotion download its compatible browser on the first render.
 
@@ -52,9 +52,9 @@ Open **http://127.0.0.1:4318**. For frontend development, use `npm run dev` and 
 
 **Build and try on Windows/Linux x64:** install Node.js 22+ with npm, Rust, and the [Tauri build prerequisites](https://v2.tauri.app/start/prerequisites/) once. Windows needs the MSVC Rust toolchain, Visual Studio C++ Build Tools/Windows SDK and WebView2; Linux needs a C/C++ toolchain, pkg-config, GTK 3 and WebKitGTK 4.1 development packages.
 
-Run **Build-Windows.cmd** or **`sh Build-Linux.sh`**. Both call the same script, also available as **`npm run desktop:build`**. It installs locked npm dependencies when changed, downloads the pinned media SDK/headers and compatibility browser, builds the UI and optimized native executable, and prints its location. Build separately on each OS; this does not cross-compile. It uses one compiler job and disables release LTO by default to limit build pressure. It never runs GPU probes or tests.
+Run **Build-Windows.cmd** or **`sh Build-Linux.sh`**. Both call the same script, also available as **`npm run desktop:build`**. It installs locked npm dependencies when changed, downloads the pinned media SDK/headers, builds the UI and optimized native executable, and prints its location. Build separately on each OS; this does not cross-compile. It uses one compiler job and disables release LTO by default to limit build pressure. It never runs GPU probes or tests.
 
-Then use **Start-Desktop-Windows.cmd**, **`sh Start-Desktop-Linux.sh`**, or **`npm run desktop:start`**. Keep the checkout, `node_modules` and `.runtime`: these are local test builds, not standalone installers. `npm run desktop:build -- --launch` starts after building; `--debug` builds faster without release optimization; `--check` only checks build prerequisites. Build output is recorded in `.runtime/desktop-build.json`, with compiler output in `.runtime/desktop-build.log`. Close the editor before rebuilding. Native build prerequisites and graphics drivers are not installed automatically.
+Then use **Start-Windows.cmd** (or **Start-Desktop-Windows.cmd**), **`sh Start-Linux.sh`** (or **`sh Start-Desktop-Linux.sh`**), or **`npm run desktop:start`**. Keep the checkout, `node_modules` and `.runtime`: these are local test builds, not standalone installers. `npm run desktop:build -- --launch` starts after building; `--debug` builds faster without release optimization; `--check` only checks build prerequisites. Build output is recorded in `.runtime/desktop-build.json`, with compiler output in `.runtime/desktop-build.log`. Close the editor before rebuilding. Native build prerequisites and graphics drivers are not installed automatically.
 
 The Tauri 2 desktop app reuses the React/SCSS editor and the same Node backend, MCP tools, Codex/Ollama integration and asset library. Install Rust and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/) (Windows: MSVC build tools and WebView2; Linux: GTK 3 and WebKitGTK 4.1 development libraries), run `npm run desktop:setup` once for the pinned FFmpeg media libraries and Vulkan headers, then `npm run desktop:dev`. It starts the local backend, or attaches to an existing server for this checkout and data directory. Closing the app stops only the backend it started.
 

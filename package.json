@@ -25,7 +25,11 @@
     "desktop:build": "node scripts/build-desktop.mjs",
     "desktop:start": "node scripts/start-desktop.mjs",
     "desktop:check": "node scripts/desktop-smoke.mjs",
-    "desktop:setup": "node scripts/install/desktop.mjs"
+    "desktop:setup": "node scripts/install/desktop.mjs",
+    "web:setup": "node scripts/web/setup.mjs",
+    "web:launch": "node scripts/web/launch.mjs",
+    "desktop:release": "node scripts/release/build.mjs",
+    "release:smoke": "node scripts/release/smoke.mjs"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.4.0",

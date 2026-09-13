@@ -46,25 +46,6 @@ try {
         $Node = Join-Path $Runtime 'node\node.exe'
     }
     $env:PATH = "$(Split-Path $Node -Parent);$env:PATH"
-    if (!$LaunchOnly -or !(Test-Path (Join-Path $Runtime 'config.json'))) {
-        $FFmpeg = Get-Command ffmpeg.exe -ErrorAction SilentlyContinue
-        $FFprobe = Get-Command ffprobe.exe -ErrorAction SilentlyContinue
-        $PortableFFmpeg = Join-Path $Runtime 'ffmpeg\bin\ffmpeg.exe'
-        if (!$env:FFMPEG_PATH -and !(Test-Path $PortableFFmpeg) -and (!$FFmpeg -or !$FFprobe)) {
-            $Base = 'https://www.gyan.dev/ffmpeg/builds'
-            $ArchiveName = 'ffmpeg-release-essentials.zip'
-            $Archive = Join-Path $Runtime $ArchiveName
-            Download-Verified "$Base/$ArchiveName" "$Base/$ArchiveName.sha256" $Archive $ArchiveName
-            $Extract = Join-Path $Runtime 'ffmpeg-extract'
-            if (Test-Path $Extract) { Remove-Item $Extract -Recurse -Force }
-            Expand-Archive -Force $Archive $Extract
-            $Binary = Get-ChildItem $Extract -Filter ffmpeg.exe -Recurse | Select-Object -First 1
-            if (!$Binary) { throw 'FFmpeg archive did not contain ffmpeg.exe.' }
-            Move-Item (Split-Path (Split-Path $Binary.FullName -Parent) -Parent) (Join-Path $Runtime 'ffmpeg')
-            Remove-Item $Archive
-            Remove-Item $Extract -Recurse -Force
-        }
-    }
     $Script = if ($LaunchOnly) { 'scripts/install/launch.mjs' } else { 'scripts/install/setup.mjs' }
     $Arguments = @()
     if ($NoLaunch) { $Arguments += '--no-launch' }

@@ -33,7 +33,7 @@ async function renderCompatibilityProject({project, job, workspace, root, export
   let serveUrl: string | undefined;
   const prepareComposition = async (overlay: boolean) => {
     // Plain native cuts never need a browser or a JavaScript bundle.
-    serveUrl ??= await bundle({entryPoint: path.join(root, 'src/video/index.tsx'), outDir: path.join(workspace, 'bundle'), onProgress: value => onProgress({phase: 'Preparing composition', progress: value / 100 * .08})});
+    serveUrl ??= await bundle({entryPoint: path.join(root, 'src/video/index.tsx'), enableCaching: !process.env.FRAMECRAFT_BROWSER_CACHE, outDir: path.join(workspace, 'bundle'), onProgress: value => onProgress({phase: 'Preparing composition', progress: value / 100 * .08})});
     renderer ??= await openRenderBrowser(hardware);
     const resources = renderResources(settings?.width ?? project.width, settings?.height ?? project.height, {hardware: Boolean(hardware) || renderer.accelerated});
     const concurrency = resources.concurrency;

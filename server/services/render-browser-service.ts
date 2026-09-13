@@ -1,6 +1,6 @@
 import {realpath} from 'node:fs/promises';
 import path from 'node:path';
-import {browserExecutable} from './browser-service';
+import {browserExecutable, prepareRenderBrowser} from './browser-service';
 import {remotionRenderer} from './remotion-encoder-adapter';
 import type {HardwareEncoder} from './encoding-arguments';
 import {gpuDisabled} from './rendering/gpu-policy';
@@ -23,6 +23,7 @@ export function hardwareBrowserStatus(info: GpuInfo) {
  * capability failures. Share one browser between artwork and the full renderer.
  */
 export async function openRenderBrowser(hardware?: HardwareEncoder) {
+  await prepareRenderBrowser();
   const previousPrime = process.env.DRI_PRIME;
   if(hardware?.device && process.platform === 'linux' && previousPrime === undefined) {
     const device = await realpath(path.join('/sys/class/drm', path.basename(hardware.device), 'device')).catch(() => '');

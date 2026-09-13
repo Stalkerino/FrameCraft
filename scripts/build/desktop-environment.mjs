@@ -6,7 +6,6 @@ import path from 'node:path';
 import {root, runtime, environment, readConfig, run, npmCli, findExecutable} from '../install/runtime.mjs';
 import {installVulkan} from '../install/vulkan.mjs';
 import {prepareDesktopSdk} from '../install/desktop.mjs';
-import {prepareBrowser} from '../install/browser.mjs';
 
 const prerequisites = 'Install Rust (https://rustup.rs) and the platform build tools: https://v2.tauri.app/start/prerequisites/';
 export function desktopBuildEnvironment(config = {}) {
@@ -71,9 +70,6 @@ export async function prepareDesktopDependencies(env, log) {
     if(!existsSync(binary)) throw new Error(`Missing media executable: ${binary}`);
     config[key] = stored(binary);
   }
-  console.log('Preparing compatibility browser (download only; no GPU initialization)…');
-  const browser = await prepareBrowser({env, config, log});
-  config.CHROME_PATH = stored(browser);
   await writeFile(path.join(runtime, 'config.json'), JSON.stringify(config, null, 2) + '\n');
   return desktopBuildEnvironment(config);
 }

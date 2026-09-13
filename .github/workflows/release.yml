@@ -1,0 +1,95 @@
+name: Desktop release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Build version (for example 0.1.0-beta.1). Manual runs create downloadable artifacts without publishing.'
+        required: true
+        default: '0.1.0'
+permissions:
+  contents: read
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      FRAMECRAFT_RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+      CARGO_BUILD_JOBS: '2'
+      FRAMECRAFT_DISABLE_GPU: '1'
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: desktop-release
+      - name: Linux build and packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev librsvg2-dev patchelf libfuse2 libvulkan1 libasound2 libatomic1 fonts-liberation xvfb gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+      - run: npm ci --no-audit --no-fund
+      - name: Package desktop application and bundled runtimes
+        run: npm run desktop:release
+      - name: Check installed Windows package (no GPU)
+        if: runner.os == 'Windows'
+        run: npm run release:smoke
+      - name: Check relocated Linux packages (no GPU)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run release:smoke
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: release-diagnostics-${{ runner.os }}
+          path: |
+            .runtime/release/smoke.log
+            .runtime/release/tauri.release.json
+          include-hidden-files: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          path: .runtime/release/artifacts/*
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 14
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: release-artifacts
+      - run: node scripts/release/checksums.mjs release-artifacts
+      - name: Publish all installers together after both platforms passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          prerelease=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then prerelease=(--prerelease); fi
+          gh release create "$RELEASE_TAG" release-artifacts/* --verify-tag --title "Framecraft $RELEASE_TAG" --notes-file docs/release-notes.md "${prerelease[@]}"

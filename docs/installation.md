@@ -1,56 +1,32 @@
-# Install and launch
+# Install Framecraft
 
-Download the repository with **Code → Download ZIP** on GitHub and extract it completely into a writable folder, or clone it with Git. Do not run an installer from inside the ZIP. Internet access is needed for the first installation.
+Download from [GitHub Releases](https://github.com/Stalkerino/FrameCraft/releases):
 
-## Windows
+- **Windows 10/11 x64:** run `Framecraft_…_x64-setup.exe`. The installer includes the WebView2 offline installer for machines missing the embedded webview. Start Framecraft from the Start menu.
+- **Linux x64:** download the `.AppImage`, mark it executable in file properties, then run it. Alternatively install the `.deb` with your package manager (for example `sudo apt install ./Framecraft_…_amd64.deb`). Linux builds target Ubuntu 22.04 and newer compatible glibc distributions; AppImage may require your distribution's FUSE 2 package, or run it with `--appimage-extract-and-run`.
 
-1. Double-click **Install-Windows.cmd**.
-2. Wait for dependency installation and the build. Framecraft opens in your default browser when ready.
-3. Next time, double-click **Start-Windows.cmd**. Keep the console open while editing; Ctrl+C stops the server.
+These are Tauri desktop applications. Node, the backend, native FFmpeg libraries and built-in assets are included. Rust, npm and an external browser are not startup requirements. GPU rendering still requires a compatible graphics driver. The optional Remotion compatibility renderer downloads its browser into the user cache only when needed. AI providers remain optional and require their own configured CLI/authentication or Ollama server.
 
-Windows 10/11, 64-bit, with built-in PowerShell 5.1 or newer is the primary target. ARM64 Windows needs x64 emulation for the downloaded Windows tools. No global Node/npm installation or administrator account is needed for the portable Windows dependencies.
+Projects, media, presets, model caches and `desktop.log` live under the OS application-data directory for `com.framecraft.studio`, in `data/`. Agent-generated files use its sibling `workspace/`. Installing an update replaces application files, preserving those user folders. Source-checkout projects remain in their existing `data/` folder; use project backup/import to transfer them. Releases currently have no code-signing certificate configured.
 
-Setup reuses Node 22+ with npm when available; otherwise it downloads the official Node 24 LTS x64 ZIP into `.runtime/node`. If FFmpeg/ffprobe are missing, it downloads the [Gyan release essentials ZIP](https://www.gyan.dev/ffmpeg/builds/), which includes AMF/NVENC hardware support. Both archives are checked against the publisher's SHA-256 files before extraction. No system PATH or machine-wide PowerShell execution policy is changed: the policy argument applies only to this installer process.
+## Build from source
 
-## Linux
+Install Node 22+ with npm, Rust, and the [Tauri platform build prerequisites](https://v2.tauri.app/start/prerequisites/). Windows needs MSVC C++ tools and a Windows SDK; Linux needs GTK 3 / WebKitGTK 4.1 development packages.
 
-Run **Install-Linux.sh** using your file manager's **Run in Terminal** action. Some desktops require **Properties → Permissions → Allow executing file as program** first. Linux does not universally allow executable scripts from a ZIP to run on double-click; the reliable first-run command is:
+- **Build:** `Build-Windows.cmd`, `sh Build-Linux.sh`, or `npm run desktop:build`.
+- **Start:** `Start-Windows.cmd`, `sh Start-Linux.sh`, or `npm run launch`.
+- **Setup and start:** `Install-Windows.cmd` or `sh Install-Linux.sh` can bootstrap Node and build the desktop app; native compiler prerequisites must already be installed. `--no-launch` (Linux) / `-NoLaunch` (PowerShell script) builds without starting.
 
-```sh
-sh Install-Linux.sh
-```
+Normal launchers always open Tauri. Source builds require their checkout, `node_modules` and `.runtime` to remain available. Close Framecraft before rebuilding. Logs: `.runtime/desktop-build.log`.
 
-The installer uses your distribution's package manager for FFmpeg and browser libraries. It may request your `sudo` password. Run it as your normal user, **not** with `sudo` in front of the installer. Node 22+ with npm is reused, or the official Node 24 LTS Linux archive is downloaded and SHA-256 checked locally.
+For explicit browser mode only: `npm run web:setup` then `npm run web:launch`; this requires FFmpeg and compatibility browser dependencies. `npm start` is the backend development command.
 
-- **Ubuntu/Debian:** apt installs FFmpeg and the browser's shared libraries.
-- **Arch and derivatives:** pacman installs FFmpeg and Chromium. Keep the distribution updated; setup does not perform a system upgrade.
-- **Fedora/openSUSE:** dnf/zypper install FFmpeg and Chromium, but a multimedia repository providing a complete FFmpeg build must already be enabled. A build without libx264/AAC is rejected with an explanation.
-- **Other distributions:** install Node 22+, npm, FFmpeg with ffprobe, and Chromium yourself, then run `npm run setup`.
+## GitHub CI releases
 
-Linux x64 with a recent glibc distribution is the main automated target. ARM64 requires a distribution Chromium executable; Remotion's downloadable browser is not available on every architecture. Set `CHROME_PATH` when needed.
+1. Commit and push the prepared code.
+2. In **Actions → Desktop release → Run workflow**, enter a version to build both platforms and download the resulting workflow artifacts without publishing.
+3. To publish, push a new version tag, for example `git tag v0.1.0` followed by `git push origin v0.1.0`.
 
-After installation, use **Start-Linux.sh** or the generated **Framecraft.desktop** shortcut. Your desktop may ask you to trust that shortcut. Keep the installation in the same location, or rerun setup to regenerate its absolute launcher paths.
+The tag supplies the installer version. CI builds Windows NSIS and Linux AppImage/DEB independently, installs/extracts the packages into temporary folders, checks the real native executable, bundled backend, built-in media and MCP connection without GPU rendering, then publishes all three packages plus `SHA256SUMS.txt`. Failed platform checks block publication. Tags containing a suffix such as `v0.2.0-beta.1` create prereleases. No separate GitHub token secret is needed; the publication job uses its scoped `GITHUB_TOKEN`.
 
-## What setup does
-
-Setup checks Node/npm, FFmpeg, ffprobe and codec listings; runs `npm ci` from the lockfile; prepares Chromium; checks its executable version; builds the application; saves local runtime paths; and launches the editor at **http://127.0.0.1:4318**.
-
-It does **not** run video/GPU stress tests, change GPU drivers, download AI models, sign into an AI provider, register a global MCP server, or modify your saved projects. First-time setup needs several hundred MB of downloads and additional disk space for dependencies. A setup log is saved at `.runtime/install.log` (bootstrap download/package-manager errors appear in the console).
-
-For AI, choose **Ollama** in the editor and enter your existing server URL, or install/sign into **Codex CLI** separately. Editing works without either. User authentication cannot be automated by the installer.
-
-## Restart, update and troubleshooting
-
-- Start reuses an existing Framecraft service on the selected port. It reports an error if a different application occupies the port.
-- Stop Framecraft before running setup again. Dependency replacement while an editor/export is active is refused.
-- After replacing source files or pulling changes, Start detects changes and rebuilds through setup when necessary. It reuses existing downloads and preserves `data/`.
-- To install without launching, use `sh Install-Linux.sh --no-launch` or `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install/windows.ps1 -NoLaunch`.
-- With Node and system dependencies already installed, `npm run setup` and `npm run launch` call the shared cross-platform implementation.
-- Set `PORT` before launching to use a different port. Existing `FFMPEG_PATH`, `FFPROBE_PATH`, `CHROME_PATH` and data-directory environment overrides remain supported. See [all configuration options](getting-started.md).
-- `.runtime/`, `node_modules/`, the generated shortcut and project data are ignored by Git. Keep `data/` when replacing an installation; it contains your media and projects.
-
-## Testing a clean installation
-
-The **Installer smoke test** GitHub Actions workflow can be started manually from the repository's **Actions** tab. It runs the installer on Windows and Ubuntu, starts the built editor with an isolated temporary project directory, checks the HTTP endpoint/page, and stops that process. It does not render or exercise GPU filters. Failed jobs upload the installer log.
-
-Local checks cover the bootstrap shell/Node syntax, runtime-path selection, npm entry point resolution and existing-service detection. A clean Windows installation must still be verified on Windows or through that workflow; Linux-only checks do not establish Windows runtime success.
+`npm run desktop:release` runs the same packaging script locally on the destination OS; set `FRAMECRAFT_RELEASE_VERSION` to override the package version. Outputs: `.runtime/release/artifacts/`. Packaging stages production dependencies separately and never includes local projects, exports, credentials, AI models or development caches. Native graphics correctness/performance is validated separately on real hardware.

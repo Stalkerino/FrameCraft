@@ -1,3 +1,4 @@
+import {agentWorkspacePath} from './agent-workspace-path';
 import {createHash, randomUUID} from 'node:crypto';
 import {readFile, writeFile, readdir, realpath, stat, mkdir, rename, link, rm} from 'node:fs/promises';
 import path from 'node:path';
@@ -25,7 +26,7 @@ export class AgentWorkspaceService {
     return (Object.keys(workspaceToolSchemas) as WorkspaceToolName[]).filter(name => access === 'commands' || name !== 'run_workspace_command').map(name => ({name, description: descriptions[name], inputSchema: toJsonSchemaCompat(workspaceToolSchemas[name]) as Tool['inputSchema']}));
   }
   has(name: string) {return this.tools.some(tool => tool.name === name);}
-  async root() {return realpath(path.resolve(this.options.root, this.settings().workspacePath || '.'));}
+  async root() {return realpath(path.resolve(agentWorkspacePath(this.options.root), this.settings().workspacePath || '.'));}
   async validate() {if(this.settings().workspaceAccess && this.settings().workspaceAccess !== 'disabled' && !(await stat(await this.root())).isDirectory()) throw new Error('Workspace path must be an existing directory on the Framecraft host.');}
   private async resolve(input: string, write = false) {
     const root = await this.root(); const target = path.resolve(root, input);

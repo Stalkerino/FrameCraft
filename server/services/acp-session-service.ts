@@ -1,3 +1,4 @@
+import {agentWorkspacePath} from './agent-workspace-path';
 import {EventEmitter} from 'node:events';
 import {randomUUID} from 'node:crypto';
 import {stat} from 'node:fs/promises';
@@ -32,7 +33,7 @@ export class AcpSessionService extends EventEmitter {
   private async connect(fresh: boolean) {
     this.close(); const preset = cliAgentPresets[this.provider];
     const saved = this.settings().cliAgents[this.provider];
-    const config = {command: saved?.command || preset.command, args: saved?.args ?? preset.args, cwd: path.resolve(this.options.root, saved?.cwd || '.'), authMethod: saved?.authMethod};
+    const config = {command: saved?.command || preset.command, args: saved?.args ?? preset.args, cwd: path.resolve(agentWorkspacePath(this.options.root), saved?.cwd || '.'), authMethod: saved?.authMethod};
     const identity = JSON.stringify(config);
     const resume = !fresh && identity === this.identity ? this.state.threadId : null;
     const previous = this.snapshot();

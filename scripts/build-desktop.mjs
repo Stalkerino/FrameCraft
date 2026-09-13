@@ -4,7 +4,7 @@ import {once} from 'node:events';
 import path from 'node:path';
 import {parseArgs} from 'node:util';
 import {root, runtime, run, npmCli, readConfig, mainModule} from './install/runtime.mjs';
-import {framecraftAt} from './install/launch.mjs';
+import {framecraftAt} from './install/editor-presence.mjs';
 import {checkDesktopPrerequisites, desktopBuildEnvironment, desktopBinary, nativeBuildArgs, prepareDesktopDependencies} from './build/desktop-environment.mjs';
 
 export async function buildDesktop({debug = false, check = false, launch = false} = {}) {

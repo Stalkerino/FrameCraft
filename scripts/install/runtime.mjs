@@ -58,7 +58,7 @@ export async function fingerprint() {
       else if(entry.isFile()) {hash.update(path.relative(root, file).split(path.sep).join('/')); hash.update(await readFile(file));}
     }
   };
-  for(const directory of ['src', 'server', 'shared', 'scripts/install']) await walk(path.join(root, directory));
+  for(const directory of ['src', 'server', 'shared', 'scripts/install', 'scripts/web']) await walk(path.join(root, directory));
   for(const file of ['package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json']) hash.update(await readFile(path.join(root, file)));
   hash.update(`${process.platform}/${process.arch}/${process.versions.node.split('.')[0]}`);
   return hash.digest('hex');

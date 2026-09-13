@@ -7,6 +7,7 @@ fn main() {
         panic!("Native preview dependencies missing. Run npm run desktop:setup first.");
     }
     println!("cargo:rerun-if-env-changed=FRAMECRAFT_MEDIA_SDK");
+    println!("cargo:rerun-if-env-changed=FRAMECRAFT_RELEASE_BUILD");
     println!("cargo:rerun-if-changed=src/monitor/media.c");
     println!("cargo:rerun-if-changed=src/monitor/media.h");
     cc::Build::new().file("src/monitor/media.c").include(runtime.join("include")).include(headers).std("c11")
@@ -15,7 +16,11 @@ fn main() {
     for library in ["avfilter", "avformat", "avcodec", "avutil"] { println!("cargo:rustc-link-lib=dylib={library}"); }
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
         // DT_RPATH also resolves transitive dependencies of the isolated SDK.
-        println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags,-rpath,{}", runtime.join("lib").display());
+        if std::env::var_os("FRAMECRAFT_RELEASE_BUILD").is_some() {
+            println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags,-rpath,$ORIGIN/../lib/framecraft");
+        } else {
+            println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags,-rpath,{}", runtime.join("lib").display());
+        }
     } else if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         // Keep the exact SDK DLLs beside the executable, including indirect
         // dependencies. Launching the .exe never depends on the user's PATH.

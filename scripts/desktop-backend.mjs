@@ -2,8 +2,10 @@ import {spawn} from 'node:child_process';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createInterface} from 'node:readline';
+import {releaseEnvironment} from './release/runtime.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const backendEnvironment = await releaseEnvironment(root);
 const port = Number(process.env.PORT || 4318);
 if(!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid Framecraft backend port.');
 const url = `http://127.0.0.1:${port}`;
@@ -31,17 +33,17 @@ try {
   if(existing) verify(existing);
   else {
     child = spawn(process.execPath, ['--import', 'tsx', path.join(root, 'server/index.ts')], {cwd: root, windowsHide: true,
-      env: {...process.env, FRAMECRAFT_HOST: '127.0.0.1', PORT: String(port)}, stdio: ['ignore', 'pipe', 'pipe', 'ipc']});
+      env: {...backendEnvironment, FRAMECRAFT_HOST: '127.0.0.1', PORT: String(port)}, stdio: ['ignore', 'pipe', 'pipe', 'ipc']});
     child.stdout.pipe(process.stderr); child.stderr.pipe(process.stderr);
     child.on('error', error => {console.error(error.message); process.exitCode = 1; close();});
     child.on('exit', code => {process.exit(code ?? 1);});
     let ready = false;
-    for(let i = 0; i < 100 && !closing; i++) {
+    for(let i = 0; i < 450 && !closing; i++) {
       const value = await status();
       if(value) {verify(value); ready = true; break;}
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    if(!ready) throw new Error('The editor backend did not start within ten seconds.');
+    if(!ready) throw new Error('The editor backend did not start within 45 seconds.');
   }
   if(!closing) process.stdout.write(JSON.stringify({event: 'ready', url, ownsBackend: !!child}) + '\n');
 } catch(error) {console.error(error.message); process.exitCode = 1; close();}

@@ -1,3 +1,4 @@
+import {agentWorkspacePath} from './agent-workspace-path';
 import {EventEmitter} from 'node:events';
 import {readFile, rename, writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -38,7 +39,7 @@ export class CodexSessionService extends EventEmitter {
     this.close(); this.state = {...emptyAgentSession(), autoApprove, status: 'starting'}; this.nextOrder = 0; this.publish();
     try {
       const executable = await (this.options.executable || resolveCodex)();
-      const rpc = new JsonRpcProcess({command: executable.command, args: [...executable.args, ...codexMcpArguments(this.options.root, this.options.url), 'app-server', '--listen', 'stdio://']}, this.options.root);
+      const rpc = new JsonRpcProcess({command: executable.command, args: [...executable.args, ...codexMcpArguments(this.options.root, this.options.url), 'app-server', '--listen', 'stdio://']}, agentWorkspacePath(this.options.root));
       this.rpc = rpc;
       rpc.on('message', message => {if(this.rpc === rpc) this.receive(message);});
       rpc.on('closed', (error: Error) => {
@@ -53,7 +54,7 @@ export class CodexSessionService extends EventEmitter {
         savedId = !fresh && typeof saved.threadId === 'string' ? saved.threadId : null;
         const parsed = agentModelSettingsSchema.safeParse(saved.settings); if(parsed.success) settings = parsed.data;
       } catch {}
-      const params = {cwd: this.options.root, approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'workspace-write', developerInstructions: editorAgentInstructions,
+      const params = {cwd: agentWorkspacePath(this.options.root), approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'workspace-write', developerInstructions: editorAgentInstructions,
         ...(settings ? {model: settings.model, serviceTier: settings.serviceTier, ...(settings.effort ? {config: {model_reasoning_effort: settings.effort}} : {})} : {})};
       let result: ThreadResult;
       try {result = await rpc.request<ThreadResult>(savedId ? 'thread/resume' : 'thread/start', {...params, ...(savedId ? {threadId: savedId} : {})});}

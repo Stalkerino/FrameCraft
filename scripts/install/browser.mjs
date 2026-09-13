@@ -4,7 +4,7 @@ import {root, runtime, run, mainModule} from './runtime.mjs';
 import {resolveBrowserPath} from './browser-path.mjs';
 
 export async function prepareBrowser({env, config = {}, log} = {}) {
-  const cache = path.join(runtime, 'browser'); const record = path.join(cache, 'browser.json');
+  const cache = env?.FRAMECRAFT_BROWSER_CACHE || process.env.FRAMECRAFT_BROWSER_CACHE || path.join(runtime, 'browser'); const record = path.join(cache, 'browser.json');
   const saved = await readFile(record, 'utf8').then(JSON.parse).catch(() => null);
   const browserExecutable = resolveBrowserPath({root, env, configured: config.CHROME_PATH, cached: saved?.path});
   if(browserExecutable) {console.log(`Rendering browser: ${browserExecutable}`); return browserExecutable;}
@@ -27,4 +27,8 @@ if(mainModule(import.meta.url) && process.argv[2] === '--download') {
     if(!('path' in browser) || !(await stat(browser.path)).isFile()) throw new Error('Chrome Headless Shell download did not produce an executable.');
     await writeFile(process.argv[3], JSON.stringify({path: browser.path}) + '\n');
   } catch(error) {console.error(error.message); process.exitCode = 1;}
+}
+if(mainModule(import.meta.url) && process.argv[2] === '--prepare') {
+  try {console.log(JSON.stringify({path: await prepareBrowser({env: process.env})}));}
+  catch(error) {console.error(error.message); process.exitCode = 1;}
 }
