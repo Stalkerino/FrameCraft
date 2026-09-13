@@ -1,3 +1,4 @@
+import {filterFileOption} from '../filter-file-service';
 import {sourceLayers} from '../../../shared/native-sequence-plan';
 import {mkdir, writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -98,7 +99,7 @@ async function renderNativeScene({project, job, workspace, exports}: RenderTask,
       const inputs = span.audio.filter(segment => sources.get(segment.asset.id)!.info.audio).map(segment => ({segment, file: sources.get(segment.asset.id)!.file}));
       const audioGraph = path.join(directory, `audio-${index}.txt`);
       await writeFile(audioGraph, sceneAudioGraph(inputs, settings, samples));
-      await runEncodingProcess(pipeline.binary, sceneAudioArguments(inputs, settings, audioGraph, path.join(directory, audio)), {
+      await runEncodingProcess(pipeline.binary, sceneAudioArguments(inputs, settings, audioGraph, path.join(directory, audio), await filterFileOption(pipeline.binary)), {
         onProgress: value => onProgress({phase: 'Mixing native timeline audio', progress: .73 + .15 * (completed + span.duration) / plan.frameCount,
           detail: `${inputs.length} audio sources · CPU audio only · ${(value.outTimeUs / 1e6).toFixed(1)} s`}),
       });

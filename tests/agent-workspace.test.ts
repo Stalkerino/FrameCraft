@@ -1,5 +1,5 @@
 import {afterEach, expect, it} from 'vitest';
-import {mkdtemp, mkdir, readFile, rm, symlink, writeFile} from 'node:fs/promises';
+import {mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {agentProviderSettingsSchema} from '../shared/agent';
@@ -47,9 +47,18 @@ it('runs a real command with literal arguments and reports errors and bounded ou
   const {root, call} = await workspace('commands');
   const literal = 'a b; $(not-a-command) "quoted"';
   const output = await call('run_workspace_command', {executable: 'node', args: ['-e', 'console.log(JSON.stringify({cwd:process.cwd(),arg:process.argv[1]}))', literal]});
-  expect(output.exitCode).toBe(0); expect(JSON.parse(output.stdout)).toEqual({cwd: root, arg: literal});
+  expect(output.exitCode).toBe(0); expect(JSON.parse(output.stdout)).toEqual({cwd: await realpath(root), arg: literal});
   const failed = await call('run_workspace_command', {executable: 'node', args: ['-e', 'process.stdout.write("x".repeat(50000));console.error("failed");process.exitCode=3']});
   expect(failed.exitCode).toBe(3); expect(failed.stderr).toContain('failed'); expect(failed.stdout.length).toBe(32000); expect(failed.truncated).toBe(true);
+});
+it('protects not-yet-created data directories when the workspace is opened through an alias', async () => {
+  const {root, settings} = await workspace();
+  const parent = await mkdtemp(path.join(tmpdir(), 'fc-workspace-alias-')); directories.push(parent);
+  const alias = path.join(parent, 'workspace');
+  await symlink(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const service = new AgentWorkspaceService({root: alias, data: path.join(alias, 'data')}, () => settings);
+  await expect(service.call('write_workspace_file', {path: 'data/project.json', content: 'bad', expectedSha256: null}, new AbortController().signal)).rejects.toThrow('Direct writes here are disabled');
+  await expect(readFile(path.join(root, 'data/project.json'))).rejects.toMatchObject({code: 'ENOENT'});
 });
 it('terminates a command on timeout or cancellation', async () => {
   const {call} = await workspace('commands');

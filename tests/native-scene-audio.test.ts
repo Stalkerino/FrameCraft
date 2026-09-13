@@ -1,3 +1,4 @@
+import {filterFileOption} from '../server/services/filter-file-service';
 import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -20,7 +21,7 @@ it('mixes real resampled audio with exact duration and without automatic gain re
     }
     const graph = path.join(directory, 'mix.txt'); const output = path.join(directory, 'mix.wav');
     await writeFile(graph, sceneAudioGraph(inputs, settings, 4800));
-    await runProcess(ffmpegPath(), sceneAudioArguments(inputs, settings, graph, output), 10000);
+    await runProcess(ffmpegPath(), sceneAudioArguments(inputs, settings, graph, output, await filterFileOption()), 10000);
     const chunks: Buffer[] = [];
     await runProcess(ffmpegPath(), ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', output, '-ac', '1', '-f', 'f32le', '-'], 10000, {onOutput: chunk => {chunks.push(chunk);}});
     const samples = Buffer.concat(chunks);

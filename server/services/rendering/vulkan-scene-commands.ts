@@ -1,3 +1,4 @@
+import type {FilterFileOption} from '../filter-file-service';
 import type {ExportSettings} from '../../../shared/media-settings';
 import type {NativeSceneSpan, NativeVisualLayer} from '../../../shared/native-scene-plan';
 import type {VideoPlacement} from '../../../shared/video-placement';
@@ -84,12 +85,12 @@ export function sceneAudioGraph(inputs: SceneAudioInput[], settings: ExportSetti
   return filters.join(';\n');
 }
 
-export function sceneAudioArguments(inputs: SceneAudioInput[], settings: ExportSettings, graphFile: string, output: string) {
+export function sceneAudioArguments(inputs: SceneAudioInput[], settings: ExportSettings, graphFile: string, output: string, filterOption: FilterFileOption = '-/filter_complex') {
   const args = ['-hide_banner', '-loglevel', 'error', '-nostdin'];
   for(const input of inputs) args.push('-threads', '1', '-ss', String(input.segment.sourceStart / settings.fps), '-t', String(input.segment.duration / settings.fps), '-vn', '-sn', '-dn', '-i', input.file);
   if(!inputs.length) args.push('-f', 'lavfi', '-i', `anullsrc=r=${settings.sampleRate}:cl=stereo`);
   // Envelopes can be long. Load the graph from a file rather than exceeding
   // the Windows process command-line limit with thousands of keyframes.
-  args.push('-filter_complex_threads', '1', '-/filter_complex', graphFile, '-map', '[audio]', '-vn', '-ac', '2', '-ar', String(settings.sampleRate), '-c:a', 'pcm_s16le', '-progress', 'pipe:1', '-nostats', '-y', output);
+  args.push('-filter_complex_threads', '1', filterOption, graphFile, '-map', '[audio]', '-vn', '-ac', '2', '-ar', String(settings.sampleRate), '-c:a', 'pcm_s16le', '-progress', 'pipe:1', '-nostats', '-y', output);
   return args;
 }

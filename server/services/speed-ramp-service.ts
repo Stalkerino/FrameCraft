@@ -1,3 +1,4 @@
+import {filterFileArguments} from './filter-file-service';
 import {randomUUID} from 'node:crypto';
 import {mkdir, mkdtemp, rm, unlink, writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -15,13 +16,6 @@ import {EncoderService} from './encoder-service';
 import {hardwareEncodingArguments, type HardwareEncoder} from './encoding-arguments';
 
 const decimal = (value: number) => Number(value.toFixed(10)).toString();
-const filterFileOptions = new Map<string, Promise<string>>();
-async function filterFileArguments(file: string, binary = ffmpegPath()) {
-  // FFmpeg 8 replaced filter_complex_script with generic file-valued options.
-  let option = filterFileOptions.get(binary);
-  if(!option) {option = runProcess(binary, ['-hide_banner', '-h', 'full'], 30_000).then(help => help.includes('-filter_complex_script') ? '-filter_complex_script' : '-/filter_complex'); filterFileOptions.set(binary, option);}
-  return [await option, file];
-}
 function resizedClip(clip: Clip, duration: number): Clip {
   const ratio = duration / clip.duration;
   return {...clip, duration, motionOffset: clip.motionOffset === undefined ? undefined : Math.round(clip.motionOffset * ratio),

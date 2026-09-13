@@ -7,6 +7,7 @@ import type {Tool} from '@modelcontextprotocol/sdk/types.js';
 import type {AgentProviderSettings} from '../../shared/agent';
 import {workspaceToolSchemas, type WorkspaceToolName} from '../../shared/agent-workspace';
 import {runWorkspaceCommand} from './workspace-command-service';
+import {canonicalWorkspacePath} from './workspace-path-service';
 
 const descriptions: Record<WorkspaceToolName, string> = {
   list_workspace_files: 'List a workspace directory, paged by 100 entries. Returns workspace root, host platform and Node executable. Discover source files and generated assets here.',
@@ -38,8 +39,8 @@ export class AgentWorkspaceService {
         const canonical = await realpath(ancestor);
         if(!inside(root, canonical)) throw new Error('Symlink points outside the configured workspace.');
         if(write) {
-          const data = await realpath(this.options.data).catch(() => path.resolve(this.options.data));
-          const git = await realpath(path.join(this.options.root, '.git')).catch(() => path.resolve(this.options.root, '.git'));
+          const data = await canonicalWorkspacePath(this.options.data);
+          const git = await canonicalWorkspacePath(path.join(this.options.root, '.git'));
           const destination = path.resolve(canonical, path.relative(ancestor, target));
           if(inside(data, destination) || inside(git, destination) || path.relative(root, destination).split(path.sep).some(part => part.toLowerCase() === '.git')) throw new Error('Use editor MCP tools for live project data and commands for Git operations. Direct writes here are disabled.');
         }

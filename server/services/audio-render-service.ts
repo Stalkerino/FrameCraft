@@ -1,3 +1,4 @@
+import {filterFileArguments} from './filter-file-service';
 import {reframeProject} from '../../shared/project-settings';
 import {createHash, randomUUID} from 'node:crypto';
 import {access, mkdir, readFile, readdir, rename, rm, stat, writeFile} from 'node:fs/promises';
@@ -86,7 +87,7 @@ export class AudioRenderService {
     const temporary=path.join(this.cache,`${key}-${randomUUID()}`);const script=`${temporary}.txt`;const wave=`${temporary}.wav`;
     await writeFile(script,graph);const args=['-hide_banner','-loglevel','error','-nostdin'];
     for(const input of inputs){args.push('-threads','1');if(input.start!==undefined)args.push('-ss',String(input.start));if(input.duration!==undefined)args.push('-t',String(input.duration));args.push('-vn','-sn','-dn','-i',input.file);}
-    args.push('-filter_complex_threads','1','-/filter_complex',script,'-map','[out]','-vn','-ac','2','-ar','48000','-c:a','pcm_f32le','-rf64','auto','-progress','pipe:1','-nostats','-y',wave);
+    args.push('-filter_complex_threads','1',...await filterFileArguments(script),'-map','[out]','-vn','-ac','2','-ar','48000','-c:a','pcm_f32le','-rf64','auto','-progress','pipe:1','-nostats','-y',wave);
     try {
       context.progress(label);
       await runEncodingProcess(ffmpegPath(),args,{signal:context.signal,onProgress:p=>context.progress(`${label} · ${(p.outTimeUs/1e6).toFixed(1)} s`)});
