@@ -19,7 +19,7 @@ Install Node 22+ with npm, Rust, and the [Tauri platform build prerequisites](ht
 
 Normal launchers always open Tauri. Source builds require their checkout, `node_modules` and `.runtime` to remain available. Close Framecraft before rebuilding. Logs: `.runtime/desktop-build.log`.
 
-For explicit browser mode only: `npm run web:setup` then `npm run web:launch`; this requires FFmpeg and compatibility browser dependencies. `npm start` is the backend development command.
+The React interface and local backend are internal components of the desktop app. Use the desktop launchers above to open Framecraft.
 
 ## GitHub CI releases
 

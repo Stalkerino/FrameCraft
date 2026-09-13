@@ -24,6 +24,8 @@ jobs:
     env:
       FRAMECRAFT_RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
       CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_RELEASE_LTO: 'off'
+      ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
       FRAMECRAFT_DISABLE_GPU: '1'
       APPIMAGE_EXTRACT_AND_RUN: '1'
     steps:
@@ -35,14 +37,24 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: src-tauri -> target
           key: desktop-release
+          cache-on-failure: true
+          cache-directories: src-tauri/target/.tauri
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .runtime/vulkan
+            .runtime/vulkan-shared
+            .runtime/vulkan-headers
+          key: media-sdk-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('shared/vulkan-runtime.json', 'scripts/install/vulkan.mjs', 'scripts/install/desktop.mjs') }}
       - name: Linux build and packaging dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev librsvg2-dev patchelf libfuse2 libvulkan1 libasound2 libatomic1 fonts-liberation xvfb gstreamer1.0-plugins-base gstreamer1.0-plugins-good
-      - run: npm ci --no-audit --no-fund
+      # desktop:release installs locked checkout dependencies itself, then a
+      # separate production-only copy for the installer. Avoid a third install.
       - name: Package desktop application and bundled runtimes
         run: npm run desktop:release
       - name: Check installed Windows package (no GPU)
@@ -58,6 +70,7 @@ jobs:
           path: |
             .runtime/release/smoke.log
             .runtime/release/tauri.release.json
+            .runtime/release/packaging.log
           include-hidden-files: true
       - uses: actions/upload-artifact@v4
         with:

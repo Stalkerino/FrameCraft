@@ -2,17 +2,18 @@
 
 Framecraft targets Windows and Linux. Read [AGENTS.md](AGENTS.md) and the [architecture guide](docs/architecture.md) before changing editing or rendering behavior.
 
+Original contributions use the project's [GPL-3.0-or-later terms and Remotion additional permission](LICENSING.md). Preserve upstream copyright and license notices.
+
 ## Development setup
 
-Install Node.js 22+, FFmpeg/ffprobe, and Chrome/Chromium, then run:
+Install Node.js 22+, Rust, and the [Tauri build prerequisites](https://v2.tauri.app/start/prerequisites/), then run:
 
 ```sh
-npm ci
-npm run doctor
-npm run dev
+npm run desktop:build
+npm run desktop:dev
 ```
 
-The development UI is on `http://127.0.0.1:5173`; its local service is on `http://127.0.0.1:4318`. For a production build, run `npm run build` and `npm start`. See [getting started](docs/getting-started.md) for executable paths and GPU configuration.
+Development opens the Tauri application with its local backend. Use `npm run desktop:start` to open the compiled app and `npm run desktop:release` to create installers. See [installation](docs/installation.md) for platform setup and GPU requirements.
 
 ## Keep changes in the appropriate layer
 

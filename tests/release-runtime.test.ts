@@ -1,9 +1,10 @@
 import {afterEach, expect, it} from 'vitest';
-import {mkdtemp, mkdir, writeFile, rm, stat} from 'node:fs/promises';
+import {mkdtemp, mkdir, writeFile, rm, stat, readdir, readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 const {releaseEnvironment} = await import(new URL('../scripts/release/runtime.mjs', import.meta.url).href);
 const {releaseVersion} = await import(new URL('../scripts/release/stage.mjs', import.meta.url).href);
+const {trimOnnxPlatforms} = await import(new URL('../scripts/release/native-payload.mjs', import.meta.url).href);
 const directories: string[] = [];
 afterEach(async () => {await Promise.all(directories.splice(0).map(dir => rm(dir, {recursive: true, force: true})));});
 
@@ -28,4 +29,23 @@ it('preserves checkout startup and rejects unsafe release versions', async () =>
   expect(await releaseEnvironment(directory, env)).toBe(env);
   expect(releaseVersion('v1.2.3-beta.1')).toBe('1.2.3-beta.1');
   for(const invalid of ['../release', 'refs/heads/main', '01.2.3', '1.2', '1.2.3\nmalformed']) expect(() => releaseVersion(invalid)).toThrow();
+});
+
+it.each(['linux', 'win32'])('packages only %s host ONNX binaries and preserves its binding and license', async platform => {
+  const app = await mkdtemp(path.join(tmpdir(), 'framecraft-payload-')); directories.push(app);
+  const onnx = path.join(app, 'node_modules/onnxruntime-node');
+  const binaries = path.join(onnx, 'bin/napi-v3');
+  for(const os of ['linux', 'win32', 'darwin']) for(const arch of ['x64', 'arm64']) {
+    const directory = path.join(binaries, os, arch); await mkdir(directory, {recursive: true});
+    await writeFile(path.join(directory, 'onnxruntime_binding.node'), `${os}/${arch}`);
+  }
+  await writeFile(path.join(onnx, 'LICENSE'), 'retained');
+  await trimOnnxPlatforms(app, platform, 'x64');
+  expect(await readdir(binaries)).toEqual([platform]);
+  expect(await readdir(path.join(binaries, platform))).toEqual(['x64']);
+  expect(await readFile(path.join(binaries, platform, 'x64/onnxruntime_binding.node'), 'utf8')).toBe(`${platform}/x64`);
+  expect(await readFile(path.join(onnx, 'LICENSE'), 'utf8')).toBe('retained');
+  const missing = platform === 'linux' ? 'win32' : 'linux';
+  await expect(trimOnnxPlatforms(app, missing, 'x64')).rejects.toThrow();
+  expect(await readdir(binaries)).toEqual([platform]);
 });

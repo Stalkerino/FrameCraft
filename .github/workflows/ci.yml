@@ -11,13 +11,15 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    env:
+      ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - run: npm run build
       - name: Install FFmpeg on Linux
         if: runner.os == 'Linux'

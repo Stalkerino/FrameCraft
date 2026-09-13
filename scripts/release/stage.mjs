@@ -1,6 +1,7 @@
 import {cp, mkdir, readFile, readdir, rm, writeFile, chmod, access} from 'node:fs/promises';
 import path from 'node:path';
 import {root, runtime, run, npmCli} from '../install/runtime.mjs';
+import {trimOnnxPlatforms} from './native-payload.mjs';
 
 export const releaseDirectory = path.join(runtime, 'release');
 export function releaseVersion(value) {
@@ -14,7 +15,7 @@ export async function stageRelease(version, env) {
   // wholesale: that would distribute user projects, credentials and build caches.
   await rm(releaseDirectory, {recursive: true, force: true});
   const app = path.join(releaseDirectory, 'app'); await mkdir(app, {recursive: true});
-  for(const name of ['dist', 'server', 'shared', 'src', 'public', 'package.json', 'package-lock.json', 'tsconfig.json']) {
+  for(const name of ['dist', 'server', 'shared', 'src', 'public', 'package.json', 'package-lock.json', 'tsconfig.json', 'LICENSE', 'LICENSING.md', 'THIRD_PARTY_NOTICES.md']) {
     await cp(path.join(root, name), path.join(app, name), {recursive: true});
   }
   for(const name of ['mcp.mjs', 'analysis-worker.mjs', 'desktop-backend.mjs', 'release/runtime.mjs', 'install/runtime.mjs', 'install/browser.mjs', 'install/browser-path.mjs']) {
@@ -22,7 +23,11 @@ export async function stageRelease(version, env) {
     await cp(path.join(root, 'scripts', name), path.join(app, 'scripts', name));
   }
   console.log('Installing production dependencies in isolated release staging…');
-  await run(process.execPath, [await npmCli(), 'ci', '--omit=dev', '--no-audit', '--no-fund'], {cwd: app, env});
+  // Analysis explicitly uses ONNX's CPU provider. Do not download optional CUDA
+  // providers that require absent CUDA/cuDNN libraries on the packaging runner.
+  // Video GPU rendering/encoding uses the separate Vulkan/FFmpeg runtime below.
+  await run(process.execPath, [await npmCli(), 'ci', '--omit=dev', '--no-audit', '--no-fund'], {cwd: app, env: {...env, ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'}});
+  await trimOnnxPlatforms(app);
   // npm's executable shortcuts are not used by the backend; omit absolute links.
   await rm(path.join(app, 'node_modules/.bin'), {recursive: true, force: true});
   await mkdir(path.join(app, 'runtime'));
