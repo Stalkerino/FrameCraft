@@ -34,14 +34,18 @@ test('moves and resizes canvas elements in one undo step, cancels conflicts and 
 });
 
 test('exports supported codecs with independent output resolution, frame rate, range and audio settings', async ({page, request}) => {
-  const initial = (await (await request.get('/api/project')).json()).project; const asset = initial.assets.find((a: {kind: string}) => a.kind === 'video');
+  // This spec must not depend on media imported by editor.spec or z-assist.spec.
+  const directory = path.resolve('test-results/codecs'); await mkdir(directory, {recursive: true});
+  const source = path.join(directory, 'export-source.mp4');
+  execFileSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=30:d=2', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-threads', '1', '-shortest', '-y', source]);
+  const response = await request.post('/api/import-path', {data: {filePath: source}}); expect(response.ok()).toBe(true);
+  const initial = (await response.json()).project; const asset = initial.assets.at(-1);
   const commands = [{type: 'clips.replace', clips: [clipSchema.parse({id: 'export-source', name: 'Export source', assetId: asset.id, kind: 'video', track: 'visual', start: 0, sourceStart: 0, duration: Math.round(initial.fps * 2)})]}, {type: 'project.settings', settings: {width: 640, height: 360, fps: 30}}];
   expect((await request.post('/api/commands', {data: {revision: initial.revision, commands}})).ok()).toBe(true);
   const project = (await (await request.get('/api/project')).json()).project;
   await page.goto('/'); await page.getByRole('button', {name: 'Export video', exact: true}).click();
   const dialog = page.getByRole('dialog', {name: 'Export settings'}); await dialog.getByRole('spinbutton', {name: 'Width (px)'}).fill('320'); await dialog.getByRole('spinbutton', {name: 'Height (px)'}).fill('180'); await dialog.getByRole('combobox', {name: 'Rate control'}).selectOption('bitrate'); await dialog.getByRole('spinbutton', {name: 'Video bitrate (Mbps)'}).fill('1.5');
   await page.screenshot({path: 'test-results/export-settings.png'}); await dialog.getByRole('button', {name: 'Cancel', exact: true}).click();
-  const directory = path.resolve('test-results/codecs'); await mkdir(directory, {recursive: true});
   for(const codec of codecNames) {
     const settings = {width: 320, height: 180, fps: codec === 'h264' ? 29.97 : 24, codec, audioCodec: audioCodecsFor(codec)[0], audio: codec !== 'h264-mkv', qualityMode: codec === 'h264' ? 'bitrate' : 'quality', videoBitrate: 1.5, proResProfile: '4444', startSeconds: .25, endSeconds: 1.25, sampleRate: 44100};
     const response = await request.post('/api/render', {data: {kind: 'video', revision: project.revision, settings}}); expect(response.ok()).toBe(true); const {id} = await response.json();

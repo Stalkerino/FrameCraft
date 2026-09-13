@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:ci": "node scripts/test-e2e-ci.mjs",
     "test:e2e:gpu": "node scripts/test-gpu.mjs",
     "test:gpu:native": "node scripts/test-native-gpu.mjs",
     "setup:gpu": "node scripts/install/vulkan.mjs",

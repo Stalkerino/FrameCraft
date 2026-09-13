@@ -1,6 +1,6 @@
 import {test, expect} from '@playwright/test';
 import {execFileSync} from 'node:child_process';
-import {mkdir, writeFile} from 'node:fs/promises';
+import {mkdir, realpath, writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {clipSchema, type Snapshot} from '../../shared/project';
 
@@ -95,7 +95,7 @@ test('resizable editing workflow retains full-resolution playback and source-mat
   await expect.poll(async () => (await (await request.get(`/api/render/${job.id}`)).json()).status, {timeout: 90000}).toMatch(/done|error/);
   const done = await (await request.get(`/api/render/${job.id}`)).json(); expect(done.status, done.error).toBe('done');
   expect(done.outputPath).toBe(chosenOutput);
-  expect((await (await request.get(`/api/render/${job.id}/output`)).json()).path).toBe(chosenOutput);
+  expect((await (await request.get(`/api/render/${job.id}/output`)).json()).path).toBe(await realpath(chosenOutput));
   const output = path.join(directory, 'quality-export.mp4'); await writeFile(output, await (await request.get(done.url)).body());
   const probe = JSON.parse(execFileSync(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,nb_read_frames,r_frame_rate', '-of', 'json', output], {encoding: 'utf8'}));
   expect(probe.streams[0]).toMatchObject({width: 1536, height: 864, r_frame_rate: '12/1', nb_read_frames: '6'});
