@@ -34,7 +34,7 @@ test('explains processing through the export dialog and real MCP without editing
     // not leave GPU encoding attached to browser composition.
     await page.getByLabel('Video encoder', {exact: true}).selectOption('amd');
     await expect(page.getByLabel('Render engine', {exact: true})).toHaveValue('native-vulkan');
-    await expect(page.getByRole('button', {name: 'Export now', exact: true})).toBeDisabled();
+    await expect(page.getByRole('button', {name: 'Export now', exact: true})).toBeEnabled();
     await page.getByLabel('Render engine', {exact: true}).selectOption('native-gpu');
     await expect(page.getByRole('button', {name: 'Export now', exact: true})).toBeDisabled();
     await expect(page.getByText('Native GPU export is blocked by', {exact: true})).toBeVisible();
@@ -43,11 +43,15 @@ test('explains processing through the export dialog and real MCP without editing
     expect(native.isError).not.toBe(true);
     expect(JSON.parse((native.content as {text: string}[])[0].text)).toMatchObject({engine: 'native-gpu', route: 'unsupported', verification: 'not-run'});
     await page.getByLabel('Render engine', {exact: true}).selectOption('native-vulkan');
-    await expect(page.getByRole('button', {name: 'Export now', exact: true})).toBeDisabled();
+    await expect(page.getByRole('button', {name: 'Export now', exact: true})).toBeEnabled();
+    await page.getByLabel('Video encoder', {exact: true}).selectOption('nvidia');
+    await expect(page.getByRole('button', {name: 'Export now', exact: true})).toBeEnabled();
+    await expect(page.getByText('Native GPU export is blocked by', {exact: true})).not.toBeVisible();
+    for(const asset of before.project.assets) {const image = await request.get(asset.src); expect(image.ok()).toBe(true); expect(image.headers()['content-type']).toContain('image/png');}
     const vulkan = await client.callTool({name: 'get_render_plan', arguments: {revision: before.project.revision,
       settings: {renderer: 'native-vulkan', encoder: 'amd', width: before.project.width, height: before.project.height, fps: before.project.fps}}});
     expect(vulkan.isError).not.toBe(true);
-    expect(JSON.parse((vulkan.content as {text: string}[])[0].text)).toMatchObject({engine: 'native-vulkan', route: 'unsupported', verification: 'not-run'});
+    expect(JSON.parse((vulkan.content as {text: string}[])[0].text)).toMatchObject({engine: 'native-vulkan', route: 'native-vulkan', blockers: [], verification: 'not-run'});
     const vkInventory = await client.callTool({name: 'get_export_encoders', arguments: {codec: 'h264', renderer: 'native-vulkan'}});
     expect(vkInventory.isError).not.toBe(true);
     expect(JSON.parse((vkInventory.content as {text: string}[])[0].text).encoders.every((item: {available: boolean}) => !item.available)).toBe(true);

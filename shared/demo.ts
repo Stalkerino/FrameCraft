@@ -1,12 +1,23 @@
 import {clipSchema, type Project} from './project';
 
+export const demoMediaNames = ['world', 'build', 'detail'] as const;
+
+/** Upgrade only bundled artwork references, including saved undo/redo states. */
+export function normalizeDemoMedia(project: Project): Project {
+  return {...project, assets: project.assets.map(asset => {
+    if(!asset.demo || !demoMediaNames.some(name => asset.src === `/media/demo-${name}.svg`)) return asset;
+    const src = asset.src.replace(/\.svg$/, '.png');
+    return {...asset, src, name: asset.name.replace(/\.svg$/i, '.png'), thumbnail: asset.thumbnail === asset.src ? src : asset.thumbnail};
+  })};
+}
+
 export function createDemo(): Project {
   return {
     version: 1, id: 'local-project', name: 'A world in the making', revision: 0, width: 1920, height: 1080, fps: 30,
     assets: [
-      {id: 'demo-world', name: '01 — The new world.svg', kind: 'image', src: '/media/demo-world.svg', thumbnail: '/media/demo-world.svg', duration: 6, width: 1920, height: 1080, demo: true},
-      {id: 'demo-build', name: '02 — Building the atmosphere.svg', kind: 'image', src: '/media/demo-build.svg', thumbnail: '/media/demo-build.svg', duration: 6, width: 1920, height: 1080, demo: true},
-      {id: 'demo-detail', name: '03 — A closer look.svg', kind: 'image', src: '/media/demo-detail.svg', thumbnail: '/media/demo-detail.svg', duration: 6, width: 1920, height: 1080, demo: true},
+      {id: 'demo-world', name: '01 — The new world.png', kind: 'image', src: '/media/demo-world.png', thumbnail: '/media/demo-world.png', duration: 6, width: 1920, height: 1080, demo: true},
+      {id: 'demo-build', name: '02 — Building the atmosphere.png', kind: 'image', src: '/media/demo-build.png', thumbnail: '/media/demo-build.png', duration: 6, width: 1920, height: 1080, demo: true},
+      {id: 'demo-detail', name: '03 — A closer look.png', kind: 'image', src: '/media/demo-detail.png', thumbnail: '/media/demo-detail.png', duration: 6, width: 1920, height: 1080, demo: true},
     ],
     clips: [
       clipSchema.parse({id: 'scene-1', name: 'The new world', kind: 'image', assetId: 'demo-world', track: 'visual', start: 0, duration: 180}),
