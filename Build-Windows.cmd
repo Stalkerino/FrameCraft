@@ -6,6 +6,7 @@ if exist "%~dp0.runtime\node\node.exe" set "FRAMECRAFT_BUILD_NODE=%~dp0.runtime\
 "%FRAMECRAFT_BUILD_NODE%" "%~dp0scripts\build-desktop.mjs" %*
 set "FRAMECRAFT_EXIT=%ERRORLEVEL%"
 if not "%FRAMECRAFT_EXIT%"=="0" (
+  echo Full error log: "%~dp0.runtime\desktop-build.log"
   echo Build prerequisites: Node.js 22+, Rust MSVC, Visual Studio C++ Build Tools and Windows SDK.
   echo See https://v2.tauri.app/start/prerequisites/
   pause

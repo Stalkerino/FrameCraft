@@ -1,8 +1,9 @@
-import {createWriteStream, existsSync} from 'node:fs';
+import {createWriteStream} from 'node:fs';
 import {mkdir, writeFile} from 'node:fs/promises';
 import {once} from 'node:events';
 import path from 'node:path';
 import {root, runtime, environment, readConfig, run, npmCli, findExecutable, fingerprint, desktopQuote, mainModule} from './runtime.mjs';
+import {prepareBrowser} from './browser.mjs';
 const storedPath = file => {const relative = path.relative(root, file); return relative.startsWith('..' + path.sep) || path.isAbsolute(relative) ? file : relative;};
 
 export async function setup({start = true} = {}) {
@@ -31,13 +32,9 @@ export async function setup({start = true} = {}) {
     console.log('Installing the locked application dependencies...');
     await run(process.execPath, [await npmCli(), 'ci', '--include=dev', '--no-fund', '--no-audit'], {env, log});
     console.log('Preparing the rendering browser (download only; no GPU test)...');
-    const {ensureBrowser} = await import('@remotion/renderer');
-    const systemBrowser = env.CHROME_PATH || (process.platform === 'linux' ? findExecutable('chromium', env) || findExecutable('chromium-browser', env) : undefined);
-    const browser = await ensureBrowser({...(systemBrowser ? {browserExecutable: systemBrowser} : {}), logLevel: 'info'});
-    if(!('path' in browser)) throw new Error('The rendering browser could not be prepared. Check the download connection and rerun setup.');
-    if(!existsSync(browser.path)) throw new Error(`Rendering browser missing: ${browser.path}`);
-    config.CHROME_PATH = storedPath(browser.path); env.CHROME_PATH = browser.path;
-    await run(browser.path, ['--version'], {env, capture: true, log});
+    const browser = await prepareBrowser({env, config, log});
+    config.CHROME_PATH = storedPath(browser); env.CHROME_PATH = browser;
+    await run(browser, ['--version'], {env, capture: true, log});
     console.log('Building Framecraft...');
     await run(process.execPath, [await npmCli(), 'run', 'build'], {env, log});
     await writeFile(path.join(runtime, 'config.json'), JSON.stringify(config, null, 2) + '\n');

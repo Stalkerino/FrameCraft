@@ -4,6 +4,7 @@ import {readFile, readdir, realpath, stat} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {resolveBrowserPath} from './browser-path.mjs';
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const runtime = path.join(root, '.runtime');
@@ -12,7 +13,11 @@ export function environment(config = {}) {
   env.PATH = [path.dirname(process.execPath), path.join(runtime, 'ffmpeg/bin'), env.PATH || env.Path || ''].join(path.delimiter);
   // Windows treats environment keys case-insensitively; pass only one PATH key.
   if(process.platform === 'win32') for(const key of Object.keys(env)) if(key !== 'PATH' && key.toUpperCase() === 'PATH') delete env[key];
-  for(const key of ['FFMPEG_PATH', 'FFPROBE_PATH', 'CHROME_PATH']) if(!env[key] && config[key]) env[key] = path.resolve(root, config[key]);
+  for(const key of ['FFMPEG_PATH', 'FFPROBE_PATH']) if(!env[key] && config[key]) env[key] = path.resolve(root, config[key]);
+  const browser = resolveBrowserPath({root, env, configured: config.CHROME_PATH});
+  // An invalid inherited override must not replace the repaired saved path.
+  for(const key of Object.keys(env)) if(key.toUpperCase() === 'CHROME_PATH') delete env[key];
+  if(browser) env.CHROME_PATH = browser;
   return env;
 }
 export async function readConfig() {return JSON.parse(await readFile(path.join(runtime, 'config.json'), 'utf8'));}
