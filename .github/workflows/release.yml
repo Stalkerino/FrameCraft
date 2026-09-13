@@ -1,6 +1,9 @@
 name: Desktop release
 on:
   push:
+    # Tag caches are isolated from subsequent tags. Building on the default
+    # branch populates the dependency/tool caches that release tags can restore.
+    branches: ['main']
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -12,7 +15,7 @@ permissions:
   contents: read
 concurrency:
   group: desktop-release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   build:
     strategy:
@@ -22,7 +25,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     env:
-      FRAMECRAFT_RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+      FRAMECRAFT_RELEASE_VERSION: ${{ inputs.version || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || '0.0.0-dev' }}
       CARGO_BUILD_JOBS: '2'
       CARGO_PROFILE_RELEASE_LTO: 'off'
       ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
@@ -52,7 +55,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev librsvg2-dev patchelf libfuse2 libvulkan1 libasound2 libatomic1 fonts-liberation xvfb gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev librsvg2-dev patchelf libfuse2 libvulkan1 libasound2 libatomic1 fonts-liberation xvfb gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav
       # desktop:release installs locked checkout dependencies itself, then a
       # separate production-only copy for the installer. Avoid a third install.
       - name: Package desktop application and bundled runtimes

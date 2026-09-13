@@ -4,12 +4,20 @@ use tauri::Manager;
 pub struct Backend { pub url: String, child: Mutex<Option<Child>> }
 impl Backend {
     pub fn start(app: &tauri::AppHandle) -> Result<Self, String> {
-        let packaged = app.path().resource_dir().map_err(|e| e.to_string())?.join("app");
+        // Linux packages keep Node and its private native modules outside
+        // usr/lib so AppImage deployment cannot rewrite their library paths.
+        let packaged = if cfg!(target_os = "linux") {
+            std::env::current_exe().map_err(|e| e.to_string())?
+                .parent().ok_or("Missing desktop executable directory")?
+                .join("../share/framecraft/app")
+        } else { app.path().resource_dir().map_err(|e| e.to_string())?.join("app") };
         let installed = option_env!("FRAMECRAFT_RELEASE_BUILD").is_some();
         if installed && !packaged.join("release.json").is_file() {
             return Err("The installed Framecraft runtime is missing. Reinstall using the complete desktop package.".into());
         }
-        let root = if installed { packaged } else { std::env::var_os("FRAMECRAFT_ROOT").map(PathBuf::from)
+        let root = if installed {
+            if cfg!(target_os = "linux") { packaged.canonicalize().map_err(|e| e.to_string())? } else { packaged }
+        } else { std::env::var_os("FRAMECRAFT_ROOT").map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned()) };
         let node = if installed { root.join(if cfg!(windows) {"runtime/node.exe"} else {"runtime/node"}) }
             else { std::env::var_os("FRAMECRAFT_NODE").map(PathBuf::from).unwrap_or_else(|| "node".into()) };

@@ -5,8 +5,26 @@ import path from 'node:path';
 const {releaseEnvironment} = await import(new URL('../scripts/release/runtime.mjs', import.meta.url).href);
 const {releaseVersion} = await import(new URL('../scripts/release/stage.mjs', import.meta.url).href);
 const {trimOnnxPlatforms} = await import(new URL('../scripts/release/native-payload.mjs', import.meta.url).href);
+const {packageConfig} = await import(new URL('../scripts/release/package-config.mjs', import.meta.url).href);
 const directories: string[] = [];
 afterEach(async () => {await Promise.all(directories.splice(0).map(dir => rm(dir, {recursive: true, force: true})));});
+
+it('keeps private Linux runtimes outside the AppImage ELF scan in both package formats', () => {
+  const config = packageConfig({platform: 'linux', version: '1.2.3', root: '/repo', app: '/stage/app', libraries: '/stage/libraries', icons: '/icons', names: ['libavcodec.so.62']});
+  expect(config.bundle.resources).toEqual({});
+  for(const format of ['deb', 'appimage']) {
+    const files = config.bundle.linux[format].files;
+    expect(files['/usr/share/framecraft/app']).toBe('/stage/app');
+    expect(files['/usr/lib/framecraft/libavcodec.so.62']).toBe('/stage/libraries/libavcodec.so.62');
+    expect(Object.entries(files).filter(([target, source]) => target.startsWith('/usr/lib/') && source === '/stage/app')).toEqual([]);
+  }
+});
+
+it('retains Windows resources and DLLs beside the EXE with offline installation', () => {
+  const config = packageConfig({platform: 'win32', version: '1.2.3', root: 'C:\\repo', app: 'C:\\stage\\app', libraries: 'C:\\stage\\libraries', icons: 'C:\\icons', names: ['avcodec-62.dll']});
+  expect(config.bundle.resources).toEqual({'C:\\stage\\app\\': 'app/', 'C:\\stage\\libraries\\avcodec-62.dll': 'avcodec-62.dll'});
+  expect(config.bundle.windows.webviewInstallMode.type).toBe('offlineInstaller');
+});
 
 it('keeps packaged user data, AI workspace and media tools outside installation writes', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'framecraft-release-')); directories.push(directory);
