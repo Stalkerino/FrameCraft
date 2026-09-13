@@ -1,4 +1,4 @@
-import {cp, mkdir, readdir, readFile, writeFile, rm} from 'node:fs/promises';
+import {mkdir, readFile, writeFile, rm} from 'node:fs/promises';
 import {createWriteStream} from 'node:fs';
 import {finished} from 'node:stream/promises';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import {releaseDirectory, releaseVersion, stageRelease} from './stage.mjs';
 import {framecraftAt} from '../install/editor-presence.mjs';
 import {packageConfig} from './package-config.mjs';
 import {verifyPayload} from './verify-payload.mjs';
+import {collectInstaller} from './artifacts.mjs';
 
 const version = releaseVersion(process.env.FRAMECRAFT_RELEASE_VERSION || JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).version);
 await mkdir(runtime, {recursive: true});
@@ -24,7 +25,9 @@ await run(process.execPath, [path.join(root, 'node_modules/@tauri-apps/cli/tauri
 const config = packageConfig({version, app, libraries, names, icons, root});
 const configFile = path.join(releaseDirectory, 'tauri.release.json');
 await writeFile(configFile, JSON.stringify(config, null, 2) + '\n');
-await rm(path.join(env.CARGO_TARGET_DIR, target, 'release/bundle'), {recursive: true, force: true});
+const bundleRoot = path.join(env.CARGO_TARGET_DIR, target, 'release/bundle');
+const output = path.join(releaseDirectory, 'artifacts');
+await rm(bundleRoot, {recursive: true, force: true});
 const cli = path.join(root, 'node_modules/@tauri-apps/cli/tauri.js');
 const log = createWriteStream(path.join(releaseDirectory, 'packaging.log'));
 try {
@@ -41,21 +44,11 @@ try {
     // files: the runner's older binutils may not understand their sections.
     await run(process.execPath, [cli, 'bundle', '--verbose', '--target', target, '--config', configFile, '--bundles', bundle],
       {env: process.platform === 'linux' ? {...env, NO_STRIP: '1', APPIMAGE_EXTRACT_AND_RUN: '1'} : env, log});
+    await collectInstaller(bundleRoot, output, bundle);
     console.log(`${bundle} packaged in ${Math.round((Date.now() - started) / 1000)}s.`);
   }
 } finally {log.end(); await finished(log);}
-const output = path.join(releaseDirectory, 'artifacts'); await mkdir(output);
-const bundleRoot = path.join(env.CARGO_TARGET_DIR, target, 'release/bundle');
-let count = 0;
-async function collect(directory) {
-  for(const entry of await readdir(directory, {withFileTypes: true})) {
-    const file = path.join(directory, entry.name);
-    if(entry.isDirectory()) await collect(file);
-    else if(/(?:-setup\.exe|\.AppImage|\.deb)$/.test(entry.name)) {
-      await cp(file, path.join(output, entry.name)); count++;
-    }
-  }
-}
-await collect(bundleRoot);
-if(count !== (process.platform === 'win32' ? 1 : 2)) throw new Error(`Expected installers were not produced (found ${count}).`);
+// Smoke checks extract real installers; build staging is no longer needed.
+// Keep compiled Rust dependencies, packaging tools, logs and final artifacts.
+for(const directory of [bundleRoot, app, libraries]) await rm(directory, {recursive: true, force: true, maxRetries: 5, retryDelay: 500});
 console.log(`Release ${version} packages ready in ${output}`);

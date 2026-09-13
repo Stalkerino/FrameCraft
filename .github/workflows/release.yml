@@ -33,6 +33,11 @@ jobs:
       APPIMAGE_EXTRACT_AND_RUN: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Free unused SDK space on the Linux runner
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h .
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -56,6 +61,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev librsvg2-dev patchelf libfuse2 libvulkan1 libasound2 libatomic1 fonts-liberation xvfb gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav
+          sudo apt-get clean
       # desktop:release installs locked checkout dependencies itself, then a
       # separate production-only copy for the installer. Avoid a third install.
       - name: Package desktop application and bundled runtimes

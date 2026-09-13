@@ -85,6 +85,8 @@ try {
     const destination = path.join(scratch, 'deb');
     await execute('dpkg-deb', ['-x', path.join(artifacts, deb), destination]);
     await verify(path.join(destination, 'usr/bin/framecraft-desktop'), path.join(destination, 'usr/share/framecraft/app'), 'deb');
+    // Never keep two full unpacked installations on the runner at once.
+    await rm(destination, {recursive: true, force: true, maxRetries: 5, retryDelay: 500});
     await execute(path.join(artifacts, appimage), ['--appimage-extract'], {quiet: true});
     const appdir = path.join(scratch, 'squashfs-root');
     await verify(path.join(appdir, 'AppRun'), path.join(appdir, 'usr/share/framecraft/app'), 'appimage');
@@ -94,10 +96,14 @@ try {
     const content = await readFile(path.join(scratch, label, 'data/desktop.log'), 'utf8').catch(() => '');
     return content ? `${label}:\n${content.slice(-100000)}` : '';
   }));
-  await writeFile(path.join(releaseDirectory, 'smoke.log'), [error.stack || String(error), ...logs].join('\n'));
+  console.error(error.stack || String(error));
+  await writeFile(path.join(releaseDirectory, 'smoke.log'), [error.stack || String(error), ...logs].join('\n'))
+    .catch(logError => console.error(`Could not save smoke.log: ${logError.message}`));
   for(const log of logs) if(log) console.error(log);
-  console.error(`Release smoke failed; temporary files: ${scratch}`);
   throw error;
+} finally {
+  // Diagnostics are captured above, including when extraction fails. Remove
+  // only this invocation's temporary installation/data, even on failure.
+  await rm(scratch, {recursive: true, force: true, maxRetries: 5, retryDelay: 500})
+    .catch(error => console.error(`Could not remove temporary installation ${scratch}: ${error.message}`));
 }
-// Only this script's isolated temporary installation/data are removed.
-await rm(scratch, {recursive: true, force: true, maxRetries: 5, retryDelay: 500});
