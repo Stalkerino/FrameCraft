@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod backend;
 mod exports;
+#[cfg(target_os = "linux")]
+mod host_environment;
 mod monitor;
 mod release_check;
 

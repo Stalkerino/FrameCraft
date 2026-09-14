@@ -24,8 +24,18 @@ pub async fn open_render_output(window: tauri::WebviewWindow, job_id: String, fo
 
 #[cfg(target_os = "linux")]
 fn open_path(path: &Path) -> Result<(), String> {
+    use gtk::gio::prelude::AppLaunchContextExt;
     let uri = gtk::glib::filename_to_uri(path, None).map_err(|e| e.to_string())?;
-    gtk::gio::AppInfo::launch_default_for_uri(&uri, None::<&gtk::gio::AppLaunchContext>).map_err(|e| format!("Could not open export: {e}"))
+    let context = gtk::gio::AppLaunchContext::new();
+    if let Some(appdir) = std::env::var_os("APPDIR").filter(|value| Path::new(value).is_absolute()) {
+        for (name, value) in std::env::vars_os() {
+            match crate::host_environment::external_value(&name, &value, Path::new(&appdir)) {
+                Some(clean) => context.setenv(&name, &clean),
+                None => context.unsetenv(&name),
+            }
+        }
+    }
+    gtk::gio::AppInfo::launch_default_for_uri(&uri, Some(&context)).map_err(|e| format!("Could not open export: {e}"))
 }
 
 #[cfg(target_os = "windows")]
