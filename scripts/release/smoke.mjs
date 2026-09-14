@@ -57,7 +57,7 @@ async function verify(executable, app, label) {
     await client.connect(new StdioClientTransport({command: node, args: [path.join(app, 'scripts/mcp.mjs')], cwd: scratch, env: {...testEnv, FRAMECRAFT_URL: url}, stderr: 'inherit'}));
     const result = await client.listTools(); if(result.tools.length < 20) throw new Error('Packaged MCP tool inventory is incomplete.');
     const project = await client.callTool({name: 'get_project', arguments: {}}); if(project.isError) throw new Error('Packaged MCP could not read the project.');
-    // Real installed EXE uses OS resource paths and its bundled Node, without
+    // Real installed EXE and WebView use OS resource paths and bundled Node, without
     // FRAMECRAFT_ROOT/NODE overrides. Attach to the isolated supervisor above.
     await execute(executable, ['--release-smoke'], {env: testEnv});
   } finally {

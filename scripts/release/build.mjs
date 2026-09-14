@@ -9,6 +9,7 @@ import {framecraftAt} from '../install/editor-presence.mjs';
 import {packageConfig} from './package-config.mjs';
 import {verifyPayload} from './verify-payload.mjs';
 import {collectInstaller} from './artifacts.mjs';
+import {prepareAppImageOutput} from './appimage-graphics.mjs';
 
 const version = releaseVersion(process.env.FRAMECRAFT_RELEASE_VERSION || JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).version);
 await mkdir(runtime, {recursive: true});
@@ -38,6 +39,7 @@ try {
   // Separate packaging from compilation: verbose output exposes linuxdeploy's
   // stderr, which Tauri otherwise replaces with a generic error message.
   for(const bundle of process.platform === 'win32' ? ['nsis'] : ['deb', 'appimage']) {
+    if(bundle === 'appimage') await prepareAppImageOutput(path.join(env.CARGO_TARGET_DIR, '.tauri'));
     console.log(`Packaging ${bundle} (no Rust compilation)…`);
     const started = Date.now();
     // Cargo already strips the application. Preserve prebuilt Node/media ELF

@@ -35,7 +35,7 @@ fn main() {
     }
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
-            "open_render_output", "desktop_info", "surface_open", "surface_resize", "surface_frame", "surface_close", "surface_check_finished",
+            "open_render_output", "desktop_info", "surface_open", "surface_resize", "surface_frame", "surface_close", "surface_check_finished", "release_ui_ready",
         ]),
     )).expect("Could not build desktop command permissions");
 }

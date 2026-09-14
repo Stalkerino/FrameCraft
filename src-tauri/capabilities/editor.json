@@ -12,6 +12,7 @@
   "permissions": [
     "core:default",
     "allow-desktop-info",
+    "allow-release-ui-ready",
     "allow-surface-open",
     "allow-surface-resize",
     "allow-surface-frame",

@@ -2,13 +2,17 @@
 mod backend;
 mod exports;
 mod monitor;
+mod release_check;
 
 use tauri::Manager;
 
 fn main() {
     let app = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![exports::open_render_output, monitor::desktop_info, monitor::surface_open, monitor::surface_resize, monitor::surface_frame, monitor::surface_close, monitor::surface_check_finished])
+        .invoke_handler(tauri::generate_handler![exports::open_render_output, monitor::desktop_info, monitor::surface_open, monitor::surface_resize, monitor::surface_frame, monitor::surface_close, monitor::surface_check_finished, release_check::release_ui_ready])
         .on_page_load(|window, payload| {
+            if release_check::enabled() && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                if let Err(error) = window.eval(release_check::SCRIPT) { eprintln!("Release UI check: {error}"); }
+            }
             if std::env::var("FRAMECRAFT_DESKTOP_CHECK").is_ok() { eprintln!("Desktop check: page {:?}", payload.event()); }
             if cfg!(debug_assertions) && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
                 if let Ok(vendor) = std::env::var("FRAMECRAFT_DESKTOP_CHECK") {
@@ -25,12 +29,8 @@ fn main() {
             let origin = backend.url.clone();
             app.manage(backend);
             app.manage(monitor::TrustedOrigin(origin.clone()));
-            // CI checks the installed native executable and its bundled backend
-            // without opening a monitor or initializing any GPU resources.
-            if std::env::args().any(|arg| arg == "--release-smoke") {
-                app.handle().exit(0);
-                return Ok(());
-            }
+            // A backend-only check misses a crashed/blank installed WebView.
+            if release_check::enabled() { release_check::watch(app.handle()); }
             if std::env::var("FRAMECRAFT_DESKTOP_CHECK").is_ok() { eprintln!("Desktop check: creating window"); }
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::External(origin.parse()?))
                 .title("Framecraft").theme(Some(tauri::Theme::Dark)).decorations(false)
